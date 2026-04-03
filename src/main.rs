@@ -25,7 +25,7 @@ enum DownloadPreset {
 #[command(
     name = "firemusic",
     author = "FireflyLabs",
-    version = "0.2.1",
+    version = "0.2.2",
     about = "🔥 fire music - minimalist high-performance cli music player",
     long_about = "fire music is a tactical cli player designed for pro users. \
                   it features a 'zero-leak' interface, advanced playlist logic, \

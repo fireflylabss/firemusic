@@ -19,7 +19,9 @@
 - **yt-dlp** must be in the system PATH for web features and downloading.
 
 ### Key Commands
-- **Build & Install:** `cargo install --path .` (Installs `firemusic`, `msc`, and `frmsc` aliases).
+- **Automated Install (Linux):** `curl -sSL .../install_linux.sh | bash`
+- **Automated Install (macOS):** `curl -sSL .../install_macos.sh | bash`
+- **Build & Install (Manual):** `cargo install --path .`
 - **Run:** `msc <inputs...>`
 - **Download Wizard:** `msc --download`
 - **Preset Download:** `msc --download=audio <url>`

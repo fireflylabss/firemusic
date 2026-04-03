@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-04-03
+
+### Added
+- Installation scripts for Linux and macOS (`scripts/install_linux.sh` and `scripts/install_macos.sh`).
+- Automated dependency check (Rust, MPV, yt-dlp) in installation scripts.
+- Binary isolation in `~/.fireflylabs/firemusic/` with system path linking.
+
 ## [0.2.1] - 2026-04-03
 
 ### Changed

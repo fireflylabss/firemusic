@@ -40,6 +40,20 @@ brew install mpv yt-dlp
 
 ## 📦 Instalación
 
+### Script Automatizado (Recomendado)
+Puede instalar **Fire Music** junto com todas sus dependencias (incluyendo Rust y MPV) usando los siguientes comandos:
+
+**Linux:**
+```bash
+curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_linux.sh | bash
+```
+
+**macOS:**
+```bash
+curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_macos.sh | bash
+```
+
+### Instalación Manual
 Para instalar el reproductor y registrar los alias del sistema (`firemusic`, `msc`, `frmsc`), ejecute lo siguiente en la raíz del proyecto:
 
 ```bash
