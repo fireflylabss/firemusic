@@ -51,14 +51,17 @@ fi
 
 # 2. Setup Directories
 INSTALL_DIR="$HOME/.fireflylabs/firemusic"
-TEMP_DIR=$(mktemp -d)
-echo -e "\n📁 Setting up directory: ${INSTALL_DIR}"
+TEMP_DIR="$HOME/.fireflylabs/.tmp"
+echo -e "\n📁 Setting up directories..."
 mkdir -p "$INSTALL_DIR"
+mkdir -p "$TEMP_DIR"
 
 # 3. Clone and Build
 echo -e "🚀 Fetching source code..."
-git clone https://github.com/fireflylabss/firemusic.git "$TEMP_DIR"
-cd "$TEMP_DIR"
+# Clean previous temp attempts if any
+rm -rf "$TEMP_DIR/firemusic_source"
+git clone https://github.com/fireflylabss/firemusic.git "$TEMP_DIR/firemusic_source"
+cd "$TEMP_DIR/firemusic_source"
 
 echo -e "🚀 Building Fire Music (Release)..."
 cargo build --release
@@ -76,7 +79,8 @@ ln -sf "$INSTALL_DIR/msc" "$HOME/.cargo/bin/msc"
 ln -sf "$INSTALL_DIR/frmsc" "$HOME/.cargo/bin/frmsc"
 
 # 5. Cleanup
-rm -rf "$TEMP_DIR"
+echo -e "🧹 Cleaning up temporary environment..."
+rm -rf "$TEMP_DIR/firemusic_source"
 
 echo -e "\n${GREEN}✅ Fire Music installed successfully!${NC}"
 echo -e "Try running: ${YELLOW}msc --help${NC}"
