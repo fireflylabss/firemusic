@@ -14,8 +14,7 @@
     - File d'attente multi-format (sélectionnez plusieurs extensions comme `mp3` + `flac` à la fois).
     - Modèles de noms de fichiers indépendants pour les différents flux.
     - Détection automatique de la résolution.
-- **Lecture de Flux Web :** Intégration nativa avec `yt-dlp` permettant la lecture directe depuis YouTube, SoundCloud et des milliers d'autres plateformes.
-- **Lecture de Flux Web :** Intégration nativa avec `yt-dlp` permettant la lecture directe depuis YouTube, SoundCloud et des milliers d'autres plateformes.
+- **Lecture de Flux Web :** Intégration native avec `yt-dlp` permettant la lecture directe depuis YouTube, SoundCloud et des milliers d'autres plateformes.
 - **Listes de Lecture Séquentielles :** Passez plusieurs fichiers ou URLs. Le lecteur les parcourra et s'arrêtera automatiquement après la dernière piste.
 - **Feedback Tactique :** Suivi du débit binaire (bitrate) en temps réel et extraction des titres média en direct.
 - **Vim-Friendly :** Support complet des touches de mouvement `h/j/k/l`.

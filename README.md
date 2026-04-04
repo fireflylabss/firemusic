@@ -10,7 +10,7 @@
 
 - **Zero-Leak UI Engine:** A strictly managed 3-line fixed UI block. It uses absolute cursor positioning and atomic updates to ensure your terminal scrollback remains 100% clean.
 - **Advanced Download Wizard:** Integrated `yt-dlp` system. Use `--download` to start an interactive wizard that supports:
-    - Granular stream selection (Audio, Video, or Both).
+    - Granular stream selection (Audio, Video or Both).
     - Multi-format queuing (select multiple extensions like `mp3` + `flac` at once).
     - Independent filename templates for different streams.
     - Automatic resolution detection.
