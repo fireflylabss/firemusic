@@ -15,11 +15,3 @@ serde = { version = "1.0.193", features = ["derive"] }
 [[bin]]
 name = "firemusic"
 path = "src/main.rs"
-
-[[bin]]
-name = "msc"
-path = "src/main.rs"
-
-[[bin]]
-name = "frmsc"
-path = "src/main.rs"
