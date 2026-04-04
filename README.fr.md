@@ -14,7 +14,8 @@
     - File d'attente multi-format (sélectionnez plusieurs extensions comme `mp3` + `flac` à la fois).
     - Modèles de noms de fichiers indépendants pour les différents flux.
     - Détection automatique de la résolution.
-- **Lecture de Flux Web :** Intégration native avec `yt-dlp` permettant la lecture directe depuis YouTube, SoundCloud et des milliers d'autres plateformes.
+- **Lecture de Flux Web :** Intégration nativa avec `yt-dlp` permettant la lecture directe depuis YouTube, SoundCloud et des milliers d'autres plateformes.
+- **Lecture de Flux Web :** Intégration nativa avec `yt-dlp` permettant la lecture directe depuis YouTube, SoundCloud et des milliers d'autres plateformes.
 - **Listes de Lecture Séquentielles :** Passez plusieurs fichiers ou URLs. Le lecteur les parcourra et s'arrêtera automatiquement après la dernière piste.
 - **Feedback Tactique :** Suivi du débit binaire (bitrate) en temps réel et extraction des titres média en direct.
 - **Vim-Friendly :** Support complet des touches de mouvement `h/j/k/l`.
@@ -43,14 +44,14 @@ brew install mpv yt-dlp
 ### Script Automatisé (Recommandé)
 Vous pouvez installer **Fire Music** ainsi que toutes ses dépendances (y compris Rust et MPV) à l'aide des commandes suivantes :
 
-**Linux :**
+**Linux / macOS :**
 ```bash
-curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_linux.sh | bash
+curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_unix.sh | bash
 ```
 
-**macOS :**
-```bash
-curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_macos.sh | bash
+**Windows :**
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_windows.ps1 | iex"
 ```
 
 ### Installation Manuelle
@@ -119,9 +120,20 @@ msc --download=video "https://youtube.com/watch?v=..."
 
 ---
 
+## 🗑️ Désinstallation
+
+### Windows
+- Supprimez le dossier : `C:\Users\<Utilisateur>\.fireflylabs\firemusic`
+- (Optionnel) Supprimez le dossier de votre PATH utilisateur dans les variables d'environnement.
+
+### Linux / macOS
+- Supprimez le binaire : `rm $(which msc)`
+- (Si installé via cargo) : `cargo uninstall firemusic`
+
+---
+
 ## 📜 Licence
 
 Ce projet est sous licence **Apache 2.0**. Consultez le fichier `LICENSE` pour plus de détails.
 
 Copyright © 2026-Present Firefly Labs
-

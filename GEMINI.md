@@ -19,12 +19,23 @@
 - **yt-dlp** must be in the system PATH for web features and downloading.
 
 ### Key Commands
-- **Automated Install (Linux):** `curl -sSL .../install_linux.sh | bash`
-- **Automated Install (macOS):** `curl -sSL .../install_macos.sh | bash`
+- **Automated Install (Unix / macOS):** `curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_unix.sh | bash`
+- **Automated Install (Windows):** `powershell -c "irm https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_windows.ps1 | iex"`
 - **Build & Install (Manual):** `cargo install --path .`
 - **Run:** `msc <inputs...>`
 - **Download Wizard:** `msc --download`
 - **Preset Download:** `msc --download=audio <url>`
+
+## Uninstallation
+
+### Windows
+- Delete the folder: `C:\Users\<User>\.fireflylabs\firemusic`
+- (Optional) Remove the folder from your User PATH in Environment Variables.
+
+### Linux / macOS
+- Delete the binary: `rm $(which msc)`
+- (If installed via cargo): `cargo uninstall firemusic`
+- Delete system dependencies (optional): `apt remove libmpv-dev yt-dlp` or `brew uninstall mpv yt-dlp`
 
 ## Development Conventions
 

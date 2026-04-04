@@ -43,14 +43,14 @@ brew install mpv yt-dlp
 ### Script Automatizado (Recomendado)
 Você pode instalar o **Fire Music** junto com todas as suas dependências (incluindo Rust e MPV) usando os seguintes comandos:
 
-**Linux:**
+**Linux / macOS:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_linux.sh | bash
+curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_unix.sh | bash
 ```
 
-**macOS:**
-```bash
-curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_macos.sh | bash
+**Windows:**
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_windows.ps1 | iex"
 ```
 
 ### Instalação Manual
@@ -116,6 +116,18 @@ msc --download=audio "https://youtube.com/watch?v=..."
 # Vídeo de melhor qualidade (MP4)
 msc --download=video "https://youtube.com/watch?v=..."
 ```
+
+---
+
+## 🗑️ Desinstalação
+
+### Windows
+- Exclua a pasta: `C:\Users\<Usuario>\.fireflylabs\firemusic`
+- (Opcional) Remova a pasta do seu PATH de usuário nas Variáveis de Ambiente.
+
+### Linux / macOS
+- Exclua o binário: `rm $(which msc)`
+- (Se instalado via cargo): `cargo uninstall firemusic`
 
 ---
 

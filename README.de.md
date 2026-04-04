@@ -43,14 +43,14 @@ brew install mpv yt-dlp
 ### Automatisiertes Skript (Empfohlen)
 Sie können **Fire Music** zusammen mit allen Abhängigkeiten (einschließlich Rust und MPV) mit den folgenden Befehlen installieren:
 
-**Linux:**
+**Linux / macOS:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_linux.sh | bash
+curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_unix.sh | bash
 ```
 
-**macOS:**
-```bash
-curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_macos.sh | bash
+**Windows:**
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_windows.ps1 | iex"
 ```
 
 ### Manuelle Installation
@@ -116,6 +116,18 @@ msc --download=audio "https://youtube.com/watch?v=..."
 # Beste Videoqualität (MP4)
 msc --download=video "https://youtube.com/watch?v=..."
 ```
+
+---
+
+## 🗑️ Deinstallation
+
+### Windows
+- Löschen Sie den Ordner: `C:\Users\<Benutzer>\.fireflylabs\firemusic`
+- (Optional) Entfernen Sie den Ordner aus Ihrem Benutzer-PATH in den Umgebungsvariablen.
+
+### Linux / macOS
+- Löschen Sie die Binärdatei: `rm $(which msc)`
+- (Falls über Cargo installiert): `cargo uninstall firemusic`
 
 ---
 
