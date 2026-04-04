@@ -79,6 +79,10 @@ struct Args {
         help = "start download wizard or use a preset (audio/video)"
     )]
     download: Option<String>,
+
+    /// start with lyrics enabled
+    #[arg(short, long = "lyrics", help = "show lyrics by default if available")]
+    show_lyrics: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -130,7 +134,7 @@ fn main() -> Result<()> {
     println!("\n\n\n");
     execute!(stdout, cursor::Hide, cursor::MoveUp(3))?;
 
-    let res = play_loop(&mut mpv, is_loop);
+    let res = play_loop(&mut mpv, is_loop, args.show_lyrics);
     
     execute!(stdout, cursor::Show, cursor::MoveToColumn(0), cursor::MoveDown(3))?;
     println!();
@@ -329,7 +333,7 @@ fn run_interactive_download() -> Result<()> {
     Ok(())
 }
 
-fn render_ui(mpv: &Mpv, is_loop: bool) -> Result<()> {
+fn render_ui(mpv: &Mpv, is_loop: bool, show_lyrics: bool) -> Result<()> {
     let mut stdout = io::stdout();
     let (width, _) = terminal::size().unwrap_or((80, 24));
     let width = width as usize;
@@ -387,15 +391,30 @@ fn render_ui(mpv: &Mpv, is_loop: bool) -> Result<()> {
 
     // --- Line 3 ---
     execute!(stdout, terminal::Clear(ClearType::CurrentLine))?;
-    let shortcuts = "[space] pause | [←/→] seek | [↑/↓] volume | [+/-] speed | [1-9] % | [l] loop | [m] mute | [q] quit";
-    print!("{}", if shortcuts.len() >= width { &shortcuts[..width.saturating_sub(1)] } else { shortcuts }.dark_grey());
+    if show_lyrics {
+        let lyrics = mpv.get_property::<String>("sub-text").unwrap_or_default().replace('\n', " ");
+        if !lyrics.is_empty() {
+            let lyrics_clean = lyrics.to_lowercase();
+            let lyrics_display = if lyrics_clean.len() > width {
+                format!("{}...", &lyrics_clean[..width.saturating_sub(4)])
+            } else {
+                lyrics_clean
+            };
+            print!("{}", lyrics_display.white().bold());
+        } else {
+            print!("{}", "---".dark_grey());
+        }
+    } else {
+        let shortcuts = "[space] pause | [←/→] seek | [↑/↓] volume | [+/-] speed | [v] lyrics | [m] mute | [q] quit";
+        print!("{}", if shortcuts.len() >= width { &shortcuts[..width.saturating_sub(1)] } else { shortcuts }.dark_grey());
+    }
     
     queue!(stdout, cursor::MoveToColumn(0), cursor::MoveUp(2))?;
     stdout.flush()?;
     Ok(())
 }
 
-fn play_loop(mpv: &mut Mpv, mut is_loop: bool) -> Result<()> {
+fn play_loop(mpv: &mut Mpv, mut is_loop: bool, mut show_lyrics: bool) -> Result<()> {
     loop {
         if let Some(event_result) = mpv.wait_event(0.0) {
             match event_result.map_err(|e| anyhow::anyhow!("mpv error: {:?}", e))? {
@@ -423,6 +442,9 @@ fn play_loop(mpv: &mut Mpv, mut is_loop: bool) -> Result<()> {
                     KeyCode::Char('m') => {
                         let m: bool = mpv.get_property("mute").unwrap_or(false);
                         mpv.set_property("mute", !m).ok();
+                    }
+                    KeyCode::Char('v') => {
+                        show_lyrics = !show_lyrics;
                     }
                     KeyCode::Char('l') => {
                         is_loop = !is_loop;
@@ -458,7 +480,7 @@ fn play_loop(mpv: &mut Mpv, mut is_loop: bool) -> Result<()> {
             }
         }
 
-        render_ui(mpv, is_loop)?;
+        render_ui(mpv, is_loop, show_lyrics)?;
         std::thread::sleep(Duration::from_millis(50));
     }
     Ok(())

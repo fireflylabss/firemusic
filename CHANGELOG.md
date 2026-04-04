@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-04-04
+
+### Added
+- **Full Windows Support:** Dedicated tactical installer (`scripts/install_windows.ps1`).
+- **Automated Windows Dependencies:** Installer now automatically handles `yt-dlp.exe` and `libmpv` (DLLs/Libs) downloads and extraction.
+- **Unified Unix Installer:** Merged Linux and macOS scripts into a single, smarter `scripts/install_unix.sh`.
+- **Uninstallation Guides:** Added comprehensive removal instructions for all platforms in all README files.
+- **One-Liner Commands:** Enabled "copy-paste" installation directly from GitHub for all OS.
+
+### Fixed
+- **Build Optimization:** Simplified `Cargo.toml` binary targets to prevent redundant compilation and fix PowerShell redirection errors.
+- **Windows Linker:** Fixed `LNK1181` error by explicitly exposing library paths to the MSVC linker during installation.
+- **Path Handling:** Switched to absolute pathing in scripts to ensure reliability across different terminal environments.
+- **Documentation:** Cleaned up redundant text and formatting issues in multilingual README files.
+
 ## [0.2.2] - 2026-04-03
 
 ### Added
