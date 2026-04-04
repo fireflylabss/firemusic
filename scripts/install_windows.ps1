@@ -96,26 +96,30 @@ if (Test-Path $SRC_DIR) {
 Write-Host "  ✅ Source code ready." -ForegroundColor Green
 
 # 5. Prepare environment and Compile
-Write-Host "`n🏗️ Building firemusic (msc)... (this may take a minute)"
+Write-Host "`n🏗️ Building firemusic... (this may take a minute)"
 
 # Tell Cargo and the MSVC Linker exactly where to find the .lib and .h files
 $env:LIB = "$TEMP_DIR;$TEMP_DIR\lib;$env:LIB"
 $env:INCLUDE = "$TEMP_DIR\include;$env:INCLUDE"
 $env:RUSTFLAGS = "-L native=$TEMP_DIR -L native=$TEMP_DIR\lib"
 
-cargo build --release 2>&1 | Out-Null
+# Run cargo build without suppressing output so the user sees progress
+cargo build --release --bin firemusic
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "`n  ❌ Build failed. Please run 'cargo build --release' manually in $SRC_DIR to see errors." -ForegroundColor Red
+    Write-Host "`n  ❌ Build failed. Check the errors above." -ForegroundColor Red
     exit 1
 }
 Write-Host "  ✅ Build complete." -ForegroundColor Green
 
 # 6. Move files to bin
 Write-Host "`n🚚 Finalizing installation..."
-Copy-Item "target\release\firemusic.exe" -Destination (Join-Path $BIN_DIR "msc.exe") -Force
-Copy-Item "target\release\firemusic.exe" -Destination (Join-Path $BIN_DIR "firemusic.exe") -Force
-Copy-Item "target\release\firemusic.exe" -Destination (Join-Path $BIN_DIR "frmsc.exe") -Force
+$sourceExe = Join-Path $SRC_DIR "target\release\firemusic.exe"
+
+# Create the 3 tactical names from the same binary
+Copy-Item $sourceExe -Destination (Join-Path $BIN_DIR "msc.exe") -Force
+Copy-Item $sourceExe -Destination (Join-Path $BIN_DIR "firemusic.exe") -Force
+Copy-Item $sourceExe -Destination (Join-Path $BIN_DIR "frmsc.exe") -Force
 
 # SMART DLL COPY: Look for any mpv-2.dll (with or without 'lib' prefix)
 Write-Host "  🔍 Locating libmpv-2.dll..."

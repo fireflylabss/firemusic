@@ -76,13 +76,14 @@ else
 fi
 
 echo -e "🏗️ Building Fire Music (Release) with Cargo..."
-cargo build --release
+cargo build --release --bin firemusic
 
 # 4. Copy binaries
 echo -e "🚚 Finalizing installation..."
-cp target/release/firemusic "$BIN_DIR/"
-cp target/release/msc "$BIN_DIR/"
-cp target/release/frmsc "$BIN_DIR/"
+cp target/release/firemusic "$BIN_DIR/firemusic"
+# Create aliases by copying or symlinking
+cp "$BIN_DIR/firemusic" "$BIN_DIR/msc"
+cp "$BIN_DIR/firemusic" "$BIN_DIR/frmsc"
 
 # 5. Add to PATH
 echo -e "🔗 Configuring PATH..."
