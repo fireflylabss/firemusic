@@ -1,5 +1,5 @@
 # firemusic (msc) - Windows Tactical Installer
-# This script installs firemusic in a tactical, isolated directory: $HOME\.fireflylabs\msc
+# This script installs firemusic in a tactical, isolated directory: $HOME\.fireflylabs\firemusic
 
 $ErrorActionPreference = "Stop"
 
@@ -68,15 +68,32 @@ if (Test-Path $SRC_DIR) {
 
 # 5. Prepare environment and Compile
 Write-Host "🏗️ Building firemusic (msc) with Cargo..."
-$env:MPV_LIB_PATH = "$TEMP_DIR"
-$env:INCLUDE = "$TEMP_DIR\include"
+
+# CRITICAL FIX FOR WINDOWS LINKER:
+# Tell Cargo and the MSVC Linker exactly where to find the .lib and .h files
+$env:LIB = "$TEMP_DIR;$TEMP_DIR\lib;$env:LIB"
+$env:INCLUDE = "$TEMP_DIR\include;$env:INCLUDE"
+$env:RUSTFLAGS = "-L native=$TEMP_DIR -L native=$TEMP_DIR\lib"
 
 cargo build --release
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "`n❌ Build failed. Please check the errors above." -ForegroundColor Red
+    exit 1
+}
 
 # 6. Move files to bin
 Write-Host "🚚 Finalizing installation..."
 Copy-Item "target\release\firemusic.exe" -Destination "$BIN_DIR\msc.exe" -Force
-Copy-Item "$TEMP_DIR\mpv-2.dll" -Destination "$BIN_DIR\" -Force
+Copy-Item "target\release\firemusic.exe" -Destination "$BIN_DIR\firemusic.exe" -Force
+Copy-Item "target\release\firemusic.exe" -Destination "$BIN_DIR\frmsc.exe" -Force
+
+# Copy the DLL from wherever it was extracted (root or lib)
+if (Test-Path "$TEMP_DIR\mpv-2.dll") {
+    Copy-Item "$TEMP_DIR\mpv-2.dll" -Destination "$BIN_DIR\" -Force
+} elseif (Test-Path "$TEMP_DIR\lib\mpv-2.dll") {
+    Copy-Item "$TEMP_DIR\lib\mpv-2.dll" -Destination "$BIN_DIR\" -Force
+}
 
 # 7. Add to User PATH
 Write-Host "🔗 Adding to User PATH..."
