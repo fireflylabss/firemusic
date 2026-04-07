@@ -1,6 +1,6 @@
 [package]
 name = "firemusic"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 
 [dependencies]
@@ -11,6 +11,10 @@ crossterm = "0.27.0"
 dialoguer = "0.11.0"
 serde_json = "1.0.108"
 serde = { version = "1.0.193", features = ["derive"] }
+
+[[bin]]
+name = "msc"
+path = "src/main.rs"
 
 [[bin]]
 name = "firemusic"

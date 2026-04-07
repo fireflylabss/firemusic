@@ -9,15 +9,15 @@
 ## 🚀 Key Features
 
 - **Zero-Leak UI Engine:** A strictly managed 3-line fixed UI block. It uses absolute cursor positioning and atomic updates to ensure your terminal scrollback remains 100% clean.
+- **Interactive Discovery Hub:** Search music across **YouTube**, **YouTube Music**, and **SoundCloud** directly from the CLI. Select and play or batch-download results.
+- **Audio FX & Pitch:** Real-time manipulation of playback **Pitch** (frecuency) and **Equalizer** presets (Bass+, Treble+, Rock, Vocal, Lofi).
 - **Advanced Download Wizard:** Integrated `yt-dlp` system. Use `--download` to start an interactive wizard that supports:
     - Granular stream selection (Audio, Video or Both).
     - Multi-format queuing (select multiple extensions like `mp3` + `flac` at once).
-    - Independent filename templates for different streams.
-    - Automatic resolution detection.
-- **Web Stream Playback:** Native integration with `yt-dlp` allowing direct playback from YouTube, SoundCloud, and thousands of other providers.
-- **Sequential Playlists:** Pass multiple files or URLs. The player will advance through them and automatically exit after the final track.
-- **Tactical Feedback:** Real-time bitrate tracking and live media title extraction.
-- **Vim-Friendly:** Full support for `h/j/k/l` movement keys.
+    - Metadata, thumbnail, and subtitle embedding.
+    - Format-aware validation for embedded subtitles.
+- **Web Stream Playback:** Native integration with `yt-dlp` allowing direct playback from thousands of providers.
+- **Smart Navigation:** Interactive pagination for large search results and a post-track decision menu.
 
 ---
 
@@ -40,21 +40,8 @@ brew install mpv yt-dlp
 
 ## 📦 Installation
 
-### Automated Script (Recommended)
-You can install **Fire Music** along with all its dependencies (including Rust and MPV) using the following commands:
-
-**Linux / macOS:**
-```bash
-curl -sSL https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_unix.sh | bash
-```
-
-**Windows:**
-```powershell
-powershell -c "irm https://raw.githubusercontent.com/fireflylabss/firemusic/main/scripts/install_windows.ps1 | iex"
-```
-
 ### Manual Installation
-To install the player and register the system aliases (`firemusic`, `msc`, `frmsc`), run the following in the project root:
+To install the player and register the system aliases (`firemusic`, `msc`), run the following in the project root:
 
 ```bash
 cargo install --path .
@@ -64,7 +51,7 @@ cargo install --path .
 
 ## ⌨️ Usage
 
-You can use any of the provided aliases: `msc`, `firemusic`, or `frmsc`.
+You can use either `msc` or `firemusic`.
 
 ```bash
 msc <file-or-url> [FLAGS]
@@ -73,8 +60,9 @@ msc <file-or-url> [FLAGS]
 ### Arguments & Flags
 | Flag | Short | Description | Default |
 | :--- | :--- | :--- | :--- |
+| `--search` | <kbd>-s</kbd> | Open the Interactive Discovery Hub | - |
 | `--loop` | <kbd>-l</kbd> | Repeat the entire track/playlist infinitely | `false` |
-| `--speed` | <kbd>-s</kbd> | Initial playback speed factor (0.01 - 100.0) | `1.0` |
+| `--speed` | <kbd>-f</kbd> | Initial playback speed factor (0.01 - 100.0) | `1.0` |
 | `--volume` | <kbd>-v</kbd> | Initial volume level percentage (0 - 100) | `100.0` |
 | `--download`| <kbd>-d</kbd> | Start the interactive multi-format download wizard | - |
 
@@ -86,53 +74,58 @@ During playback, the UI provides real-time tactical feedback. Use the following 
 
 | Key | Action |
 | :--- | :--- |
-| <kbd>space</kbd> / <kbd>p</kbd> | **Pause / Resume** |
+| <kbd>space</kbd> | **Pause / Resume** |
 | <kbd>←</kbd> / <kbd>→</kbd> | **Seek 5s** backward / forward (also <kbd>h</kbd> / <kbd>l</kbd>) |
-| <kbd>[</kbd> / <kbd>]</kbd> | **Seek 1m** backward / forward |
+| <kbd>{</kbd> / <kbd>}</kbd> | **Seek 1m** backward / forward |
 | <kbd>↑</kbd> / <kbd>↓</kbd> | **Volume** up / down (also <kbd>k</kbd> / <kbd>j</kbd>) |
 | <kbd>1</kbd> - <kbd>9</kbd> | **Jump** to percentage (10% - 90%) |
 | <kbd>+</kbd> / <kbd>-</kbd> | **Speed** increase / decrease |
-| <kbd>0</kbd> | **Reset** playback speed to 1.0x |
+| <kbd>,</kbd> / <kbd>.</kbd> | **Pitch** decrease / increase |
+| <kbd>e</kbd> | **Cycle Equalizer** (Bass+, Treble+, Rock, Vocal, Lofi, Off) |
+| <kbd>0</kbd> | **Reset** all FX (speed, pitch, eq) to defaults |
 | <kbd>l</kbd> | **Toggle Loop** mode on the fly |
 | <kbd>m</kbd> | **Toggle Mute** |
-| <kbd>q</kbd> / <kbd>ctrl+c</kbd> | **Quit** session |
+| <kbd>s</kbd> | **Back to Search** (only at the end of track) |
+| <kbd>q</kbd> / <kbd>esc</kbd> | **Quit** session |
 
 ---
 
-## 🎥 Download Examples
+## 🔍 Discovery Hub Examples
+
+Search and play music without leaving the terminal:
+```bash
+# Open hub and choose provider
+msc -s
+
+# Quick search on YouTube
+msc -s "daft punk"
+
+# Quick search on SoundCloud
+msc -s "sc:lofi beats"
+```
+
+---
+
+## 📦 Download Examples
 
 ### Interactive Wizard
-Simply run the command and follow the tactical prompts to select streams, formats, and metadata options:
 ```bash
 msc --download
 ```
 
 ### High-Speed Presets
-Download high-quality versions directly without the wizard:
 ```bash
-# High-quality MP3 (320kbps)
-msc --download=audio "https://youtube.com/watch?v=..."
+# High-quality MP3
+msc --download=audio "URL"
 
-# Best quality Video (MP4)
-msc --download=video "https://youtube.com/watch?v=..."
+# 1080p MP4
+msc --download=video "URL"
 ```
-
----
-
-## 🗑️ Uninstallation
-
-### Windows
-- Delete the folder: `C:\Users\<User>\.fireflylabs\firemusic`
-- (Optional) Remove the folder from your User PATH in Environment Variables.
-
-### Linux / macOS
-- Delete the binary: `rm $(which msc)`
-- (If installed via cargo): `cargo uninstall firemusic`
 
 ---
 
 ## 📜 License
 
-This project is licensed under the **Apache License 2.0**. See the `LICENSE` file for details.
+This project is licensed under the **Apache License 2.0**.
 
 Copyright © 2026-Present Firefly Labs
