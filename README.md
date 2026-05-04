@@ -1,5 +1,3 @@
-[English](README.md) | [Español](README.es.md) | [Português (Brasil)](README.pt-br.md) | [Deutsch](README.de.md) | [Français](README.fr.md)
-
 # 🔥 FireMusic
 
 **FireMusic** is a high-performance, minimalist CLI music player built with Rust and powered by the **MPV** engine. It features a tactical, "zero-leak" terminal interface designed for pro users who want high-density information without terminal clutter.
