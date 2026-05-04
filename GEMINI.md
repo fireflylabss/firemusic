@@ -1,4 +1,4 @@
-# 💎 Project Context: firemusic (fire music)
+# 💎 Project Context: firemusic (FireMusic)
 
 ## Project Overview
 **firemusic** is a high-performance, minimalist CLI music player built with Rust. It leverages the **MPV** engine via `libmpv2` to provide a sleek and robust playback experience directly in the terminal.

@@ -1,8 +1,8 @@
 [English](README.md) | [Español](README.es.md) | [Português (Brasil)](README.pt-br.md) | [Deutsch](README.de.md) | [Français](README.fr.md)
 
-# 🔥 Fire Music
+# 🔥 FireMusic
 
-**Fire Music** é um player de música CLI de alto desempenho e minimalista, construído com Rust e alimentado pelo motor **MPV**. Ele apresenta uma interface de terminal tática "zero-leak", projetada para usuários avançados que desejam informações de alta densidade sem poluir o terminal.
+**FireMusic** é um player de música CLI de alto desempenho e minimalista, construído com Rust e alimentado pelo motor **MPV**. Ele apresenta uma interface de terminal tática "zero-leak", projetada para usuários avançados que desejam informações de alta densidade sem poluir o terminal.
 
 ---
 

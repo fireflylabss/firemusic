@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 🔥 Fire Music Installer for Unix (Linux & macOS)
+# 🔥 FireMusic Installer for Unix (Linux & macOS)
 # Developed by Firefly Labs
 
 set -e
@@ -11,7 +11,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-echo -e "${YELLOW}🔥 Fire Music - Unix Tactical Installer${NC}"
+echo -e "${YELLOW}🔥 FireMusic - Unix Tactical Installer${NC}"
 
 # 1. Strict Dependency Check
 MISSING=0
@@ -75,7 +75,7 @@ else
     cd "$SRC_DIR"
 fi
 
-echo -e "🏗️ Building Fire Music (Release) with Cargo..."
+echo -e "🏗️ Building FireMusic (Release) with Cargo..."
 cargo build --release --bin firemusic
 
 # 4. Copy binaries
@@ -110,7 +110,7 @@ ln -sf "$BIN_DIR/frmsc" "$HOME/.cargo/bin/frmsc"
 add_to_path "$HOME/.bashrc"
 add_to_path "$HOME/.zshrc"
 
-echo -e "\n${GREEN}✅ Fire Music installed successfully!${NC}"
+echo -e "\n${GREEN}✅ FireMusic installed successfully!${NC}"
 echo -e "The binary is located at: ${CYAN}$BIN_DIR/msc${NC}"
 echo -e "It has been symlinked to your ${CYAN}~/.cargo/bin${NC} directory."
 echo -e "Please restart your terminal or run: ${YELLOW}source ~/.bashrc${NC} (or ~/.zshrc)"

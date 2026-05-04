@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 🔥 Fire Music Installer for macOS
+# 🔥 FireMusic Installer for macOS
 # Developed by Firefly Labs
 
 set -e
@@ -10,7 +10,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${YELLOW}🔥 Fire Music - Installation Wizard (macOS)${NC}"
+echo -e "${YELLOW}🔥 FireMusic - Installation Wizard (macOS)${NC}"
 
 # 1. Strict Dependency Check
 MISSING=0
@@ -53,7 +53,7 @@ rm -rf "$TEMP_DIR/firemusic_source"
 git clone https://github.com/fireflylabss/firemusic.git "$TEMP_DIR/firemusic_source"
 cd "$TEMP_DIR/firemusic_source"
 
-echo -e "🚀 Building Fire Music (Release)..."
+echo -e "🚀 Building FireMusic (Release)..."
 cargo build --release
 
 # Copy binaries to internal dir
@@ -72,5 +72,5 @@ ln -sf "$INSTALL_DIR/frmsc" "$HOME/.cargo/bin/frmsc"
 echo -e "🧹 Cleaning up temporary environment..."
 rm -rf "$TEMP_DIR/firemusic_source"
 
-echo -e "\n${GREEN}✅ Fire Music installed successfully!${NC}"
+echo -e "\n${GREEN}✅ FireMusic installed successfully!${NC}"
 echo -e "Try running: ${YELLOW}msc --help${NC}"

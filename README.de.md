@@ -1,8 +1,8 @@
 [English](README.md) | [Español](README.es.md) | [Português (Brasil)](README.pt-br.md) | [Deutsch](README.de.md) | [Français](README.fr.md)
 
-# 🔥 Fire Music
+# 🔥 FireMusic
 
-**Fire Music** ist ein leistungsstarker, minimalistischer CLI-Musikplayer, der mit Rust entwickelt wurde und auf der **MPV**-Engine basiert. Er verfügt über eine taktische "Zero-Leak"-Terminaloberfläche, die für Profis entwickelt wurde, die Informationen mit hoher Dichte ohne Terminal-Chaos wünschen.
+**FireMusic** ist ein leistungsstarker, minimalistischer CLI-Musikplayer, der mit Rust entwickelt wurde und auf der **MPV**-Engine basiert. Er verfügt über eine taktische "Zero-Leak"-Terminaloberfläche, die für Profis entwickelt wurde, die Informationen mit hoher Dichte ohne Terminal-Chaos wünschen.
 
 ---
 
@@ -41,7 +41,7 @@ brew install mpv yt-dlp
 ## 📦 Installation
 
 ### Automatisiertes Skript (Empfohlen)
-Sie können **Fire Music** zusammen mit allen Abhängigkeiten (einschließlich Rust und MPV) mit den folgenden Befehlen installieren:
+Sie können **FireMusic** zusammen mit allen Abhängigkeiten (einschließlich Rust und MPV) mit den folgenden Befehlen installieren:
 
 **Linux / macOS:**
 ```bash
