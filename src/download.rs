@@ -1,0 +1,322 @@
+use anyhow::Result;
+use clap::ValueEnum;
+use crossterm::style::Stylize;
+use dialoguer::Input;
+use serde_json;
+use std::io::{self, Write};
+use std::process::Command;
+
+use crate::discovery::YtdlInfo;
+use crate::tactical_select::tactical_select;
+
+#[derive(Debug, Clone, ValueEnum, PartialEq)]
+pub enum DownloadPreset {
+    Audio,
+    Video,
+}
+
+pub struct DownloadConfig {
+    format: String,
+    filename: String,
+    is_audio: bool,
+    quality: Option<String>,
+}
+
+pub fn handle_download(mode: &str, urls: Vec<String>) -> Result<()> {
+    match mode {
+        "audio" => {
+            if urls.is_empty() {
+                anyhow::bail!("url required for --download=audio");
+            }
+            for url in urls {
+                run_ytdl_preset(&url, true)?;
+            }
+            Ok(())
+        }
+        "video" => {
+            if urls.is_empty() {
+                anyhow::bail!("url required for --download=video");
+            }
+            for url in urls {
+                run_ytdl_preset(&url, false)?;
+            }
+            Ok(())
+        }
+        _ => run_interactive_download(urls),
+    }
+}
+
+fn run_ytdl_preset(url: &str, is_audio: bool) -> Result<()> {
+    let mut cmd = Command::new("yt-dlp");
+    if is_audio {
+        println!("\u{1F525} downloading audio (mp3/best)...");
+        cmd.args([
+            "-x",
+            "--audio-format",
+            "mp3",
+            "--audio-quality",
+            "0",
+            url,
+        ]);
+    } else {
+        println!("\u{1F525} downloading video (mp4/best)...");
+        cmd.args(["-f", "bv+ba/b", "--merge-output-format", "mp4", url]);
+    }
+
+    let status = cmd.spawn()?.wait()?;
+    if status.success() {
+        println!("\u{2705} download complete.");
+    } else {
+        println!("\u{274C} download failed.");
+    }
+    Ok(())
+}
+
+fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
+    println!(
+        "{}",
+        "\u{1F525} fire music download wizard".bold().yellow()
+    );
+
+    if urls.is_empty() {
+        let url: String = Input::new()
+            .with_prompt("link to download")
+            .interact_text()?;
+        urls.push(url);
+    }
+
+    // 1. Selection Phase: Type of download
+    let type_options = vec![
+        "audio only".to_string(),
+        "video only".to_string(),
+        "both (audio + video)".to_string(),
+    ];
+    let type_idx = match tactical_select(
+        "\u{1F4E6} what would you like to download?",
+        &type_options,
+        false,
+    )? {
+        Some(s) if !s.is_empty() => s[0],
+        _ => return Ok(()),
+    };
+
+    let mut audio_formats = Vec::new();
+    let mut video_formats = Vec::new();
+    let mut video_quality = "best".to_string();
+
+    // 2. Format Selection
+    if type_idx == 0 || type_idx == 2 {
+        let formats = vec![
+            "mp3".to_string(),
+            "m4a".to_string(),
+            "wav".to_string(),
+            "flac".to_string(),
+            "opus".to_string(),
+        ];
+        if let Some(selected) =
+            tactical_select("\u{1F3B5} select audio formats", &formats, true)?
+        {
+            audio_formats = selected.iter().map(|&i| formats[i].clone()).collect();
+        }
+    }
+
+    if type_idx == 1 || type_idx == 2 {
+        let formats = vec!["mp4".to_string(), "mkv".to_string(), "webm".to_string()];
+        if let Some(selected) =
+            tactical_select("\u{1F3AC} select video containers", &formats, true)?
+        {
+            video_formats = selected.iter().map(|&i| formats[i].clone()).collect();
+        }
+
+        if urls.len() == 1 {
+            print!("\r\x1b[K\u{1F50D} fetching resolutions...");
+            io::stdout().flush().unwrap();
+            let output = Command::new("yt-dlp").args(["-j", &urls[0]]).output()?;
+            print!("\r\x1b[K");
+            if let Ok(info) = serde_json::from_slice::<YtdlInfo>(&output.stdout) {
+                let mut res_options: Vec<String> = info
+                    .formats
+                    .iter()
+                    .filter(|f| f.vcodec.as_deref().unwrap_or("none") != "none")
+                    .filter_map(|f| f.resolution.clone())
+                    .collect();
+                res_options.sort();
+                res_options.dedup();
+                res_options.push("best".to_string());
+                if let Some(res_idx) = tactical_select(
+                    "\u{1F4FA} select video quality",
+                    &res_options,
+                    false,
+                )? {
+                    video_quality = res_options[res_idx[0]].clone();
+                }
+            }
+        }
+    }
+
+    // 3. Metadata & Extras
+    let mut meta_options =
+        vec!["embed metadata".to_string(), "embed thumbnail".to_string()];
+
+    // Check if subtitles exist
+    let mut available_subs = Vec::new();
+    if !urls.is_empty() {
+        print!("\r\x1b[K\u{1F50D} checking for subtitles...");
+        io::stdout().flush().unwrap();
+        let sub_check = Command::new("yt-dlp")
+            .args(["--list-subs", "--flat-playlist", &urls[0]])
+            .output()?;
+        print!("\r\x1b[K");
+        let sub_out = String::from_utf8_lossy(&sub_check.stdout);
+
+        let mut in_subs = false;
+        for line in sub_out.lines() {
+            if line.contains("Language") && line.contains("Formats") {
+                in_subs = true;
+                continue;
+            }
+            if in_subs && !line.trim().is_empty() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    available_subs.push(format!("{} - {}", parts[0], parts[1]));
+                }
+            }
+        }
+    }
+
+    let compatible_for_subs =
+        audio_formats.iter().any(|f| f == "m4a") || !video_formats.is_empty();
+    if !available_subs.is_empty() {
+        meta_options.push("download subtitles".to_string());
+    }
+
+    let mut common_args = Vec::new();
+    let mut download_subs = false;
+
+    if let Some(meta_selected) = tactical_select(
+        "\u{2728} extra features (space to toggle, enter to confirm)",
+        &meta_options,
+        true,
+    )? {
+        for &idx in &meta_selected {
+            match meta_options[idx].as_str() {
+                "embed metadata" => common_args.push("--embed-metadata".to_string()),
+                "embed thumbnail" => common_args.push("--embed-thumbnail".to_string()),
+                "download subtitles" => download_subs = true,
+                _ => {}
+            }
+        }
+    }
+
+    if download_subs {
+        let sub_types = vec![
+            "integrated (embedded in file)".to_string(),
+            "separate file (.srt/.vtt)".to_string(),
+        ];
+        let prompt = if compatible_for_subs {
+            "\u{1F4DD} how would you like the subtitles?"
+        } else {
+            "\u{1F4DD} format incompatible for embedding. save as separate file?"
+        };
+
+        if let Some(choice) = tactical_select(prompt, &sub_types, false)? {
+            let method = choice[0];
+
+            if let Some(selected_subs) = tactical_select(
+                "\u{1F30D} select subtitle languages",
+                &available_subs,
+                true,
+            )? {
+                let langs: Vec<String> = selected_subs
+                    .iter()
+                    .map(|&i| {
+                        available_subs[i]
+                            .split(" - ")
+                            .next()
+                            .unwrap()
+                            .to_string()
+                    })
+                    .collect();
+                common_args.push("--sub-langs".to_string());
+                common_args.push(langs.join(","));
+
+                if method == 0 && compatible_for_subs {
+                    common_args.push("--embed-subs".to_string());
+                } else {
+                    common_args.push("--write-subs".to_string());
+                    common_args.push("--write-auto-subs".to_string());
+                }
+            }
+        }
+    }
+
+    // 4. Execution Phase
+    for url in urls {
+        println!("\n\u{1F680} processing: {}", url.clone().cyan());
+        let output = Command::new("yt-dlp").args(["-j", &url]).output()?;
+        let info = match serde_json::from_slice::<YtdlInfo>(&output.stdout) {
+            Ok(i) => i,
+            Err(_) => {
+                println!("\u{274C} failed to fetch metadata for {}", url);
+                continue;
+            }
+        };
+
+        let mut configs = Vec::new();
+        for fmt in &audio_formats {
+            configs.push(DownloadConfig {
+                format: fmt.clone(),
+                filename: info.title.clone(),
+                is_audio: true,
+                quality: None,
+            });
+        }
+        for fmt in &video_formats {
+            configs.push(DownloadConfig {
+                format: fmt.clone(),
+                filename: info.title.clone(),
+                is_audio: false,
+                quality: Some(video_quality.clone()),
+            });
+        }
+
+        for config in configs {
+            println!(
+                "   \u{1F4E5} downloading [{}]: {}",
+                config.format.clone().cyan(),
+                config.filename.clone().white().bold()
+            );
+            let mut cmd = Command::new("yt-dlp");
+            cmd.args(&common_args);
+            if config.is_audio {
+                cmd.args([
+                    "-x",
+                    "--audio-format",
+                    &config.format,
+                    "--audio-quality",
+                    "0",
+                ]);
+            } else {
+                let res_filter = if config.quality.as_deref() == Some("best") {
+                    "bv+ba/b".to_string()
+                } else {
+                    format!(
+                        "bv[height<={pos}]+ba/b[height<={pos}]",
+                        pos = config
+                            .quality
+                            .unwrap_or_else(|| "1080".to_string())
+                            .split('x')
+                            .last()
+                            .unwrap_or("1080")
+                    )
+                };
+                cmd.args(["-f", &res_filter, "--merge-output-format", &config.format]);
+            }
+            cmd.args(["-o", &format!("{}.%(ext)s", config.filename)]);
+            cmd.arg(&url);
+            cmd.spawn()?.wait()?;
+        }
+    }
+    println!("\n\u{2705} all operations complete.");
+    Ok(())
+}
