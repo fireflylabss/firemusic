@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-05-22
+
+### Added
+- **Inline TUI Input:** Replaced external prompt flow with in-app popup input for library path changes, playlist creation, playlist saving, and library filtering.
+- **Library Filtering:** Added `/`-driven filtering in the library view with inline result feedback and `Esc` to clear the filter.
+- **TikTok Search Provider:** Added native `tk:` search support in the discovery hub.
+- **TikTok Search Fallbacks:** TikTok discovery now tries Brave Search first when `BRAVE_SEARCH_API_KEY` is set, then falls back to public HTML search providers.
+- **Search Regression Tests:** Added unit coverage for SoundCloud URL normalization and TikTok URL extraction/fallback behavior.
+
+### Changed
+- **Rust Edition:** Ported the crate to Rust 2024 and updated edition-sensitive iterator patterns for compatibility.
+- **TUI Focus Model:** Removed the invisible `Player` focus and moved playback controls to the visible `NowPlaying` focus. `Tab` now cycles only between `List` and `NowPlaying`.
+- **Escape Behavior:** `Esc` is now contextual in the TUI, closing help, returning from playlist contents, or clearing library filters before exiting.
+- **Title Bar:** Updated the header to show only `Firemusic (<current section>)`, without appending transient status text after the section label.
+- **Library Path Display:** The library view now abbreviates the user home directory as `~/`.
+- **Now Playing Layout:** Simplified the now playing panel to focus on title, progress, and time, with playback metrics left to the sidebar.
+- **Responsive Layout:** Adjusted sidebar visibility, panel sizing, and now playing height to behave better in narrower terminals.
+- **Visual Theme:** Replaced cyan highlights with red/orange accents across the TUI, tactical selectors, EQ overlay, search results, and download flow.
+- **Discovery Hub Documentation:** Updated CLI help and README examples to reflect TikTok search support and the optional `BRAVE_SEARCH_API_KEY`.
+- **Download Output Naming:** Downloaded files now use a safer `yt-dlp` output template based on title and media id instead of raw unsanitized titles.
+- **Download Extra Features:** Subtitle availability is now checked only when `check subtitles` is selected in the extra features step, instead of probing automatically before the menu.
+
+### Fixed
+- **Cover Art Loading:** Moved cover art extraction off the main TUI path to avoid blocking the interface while `ffmpeg` runs.
+- **Kitty Cover Placement:** Constrained Kitty cover rendering to the now playing area and only when enough horizontal space is available.
+- **Stats Accuracy:** Removed the fake fixed-duration estimate from stats and fall back to `unknown` when real duration data is unavailable.
+- **Render Order:** Corrected now playing block rendering so borders and inner content are drawn in a stable order.
+- **Initial TUI Paint:** Clears and renders the terminal UI immediately on startup so the shortcut bar does not briefly inherit stale terminal colors before the first keypress.
+- **SoundCloud Search URLs:** Search results now prefer public `soundcloud.com/...` pages over internal `api.soundcloud.com/...` extractor URLs when sending media to playback or download.
+- **TikTok URL Compatibility:** TikTok fallback URLs now use an extractor-compatible `@_/video/<id>` form for direct `yt-dlp` resolution.
+- **TikTok Search Reliability:** Detection of blocked/captcha HTML results now avoids silently returning empty success paths.
+- **Metadata Parsing Robustness:** Download metadata parsing now tolerates missing/null `formats` arrays and prints extractor stderr when metadata resolution fails.
+
 ## [0.2.4] - 2026-04-04
 
 ### Fixed

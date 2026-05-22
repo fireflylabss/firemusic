@@ -7,7 +7,7 @@
 ## 🚀 Key Features
 
 - **Zero-Leak UI Engine:** A strictly managed 3-line fixed UI block. It uses absolute cursor positioning and atomic updates to ensure your terminal scrollback remains 100% clean.
-- **Interactive Discovery Hub:** Search music across **YouTube**, **YouTube Music**, and **SoundCloud** directly from the CLI. Select and play or batch-download results.
+- **Interactive Discovery Hub:** Search music across **YouTube**, **YouTube Music**, **SoundCloud**, and **TikTok** directly from the CLI. Select and play or batch-download results.
 - **Audio FX & Pitch:** Real-time manipulation of playback **Pitch** (frecuency) and **Equalizer** presets (Bass+, Treble+, Rock, Vocal, Lofi).
 - **Advanced Download Wizard:** Integrated `yt-dlp` system. Use `--download` to start an interactive wizard that supports:
     - Granular stream selection (Audio, Video or Both).
@@ -100,7 +100,14 @@ msc -s "daft punk"
 
 # Quick search on SoundCloud
 msc -s "sc:lofi beats"
+
+# Quick search on TikTok
+msc -s "tk:phonk edit"
 ```
+
+TikTok does not expose a stable public `yt-dlp` search prefix. Firemusic tries
+Brave Search first when `BRAVE_SEARCH_API_KEY` is set, then falls back to public
+HTML search pages. Direct TikTok URLs always go through `yt-dlp`.
 
 ---
 
@@ -118,6 +125,10 @@ msc --download=audio "URL"
 
 # 1080p MP4
 msc --download=video "URL"
+
+# TikTok and SoundCloud URLs work in the same wizard/presets
+msc --download=audio "https://soundcloud.com/artist/track"
+msc --download=video "https://www.tiktok.com/@user/video/123"
 ```
 
 ---

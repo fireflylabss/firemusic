@@ -5,15 +5,19 @@ use anyhow::Result;
 use crossterm::{
     event::{self, Event as CEvent, KeyCode, KeyModifiers},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use libmpv2::{events::Event as MEvent, Mpv};
-use ratatui::{backend::CrosstermBackend, Terminal};
+use libmpv2::{Mpv, events::Event as MEvent};
+use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;
 use std::io::Write;
+use std::sync::mpsc;
 use std::time::Duration;
 
-use state::{AppState, EQ_PRESETS, EQ_PRESET_NAMES, Focus, LibraryEntry, PlaylistManager, Tab, Track};
+use state::{
+    AppState, EQ_PRESET_NAMES, EQ_PRESETS, Focus, InputAction, LibraryEntry, PlaylistManager, Tab,
+    Track,
+};
 use ui::render;
 
 fn cleanup_kitty_images(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) {
@@ -26,21 +30,25 @@ fn cleanup_kitty_images(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) {
 fn supports_graphics_protocol() -> bool {
     let term = std::env::var("TERM").unwrap_or_default();
     let term_program = std::env::var("TERM_PROGRAM").unwrap_or_default();
-    
+
     // Check for Kitty terminal
     if term == "xterm-kitty" || term_program == "kitty" {
         return true;
     }
-    
+
     // Check for other terminals with graphics support
     // WezTerm, iTerm2, etc. could be added here
-    
+
     false
 }
 
 pub fn run_tui(
-    inputs: Vec<String>, crossfade_duration: f64, is_loop: bool,
-    volume: f64, speed: f64, music_dir: &str,
+    inputs: Vec<String>,
+    crossfade_duration: f64,
+    is_loop: bool,
+    volume: f64,
+    speed: f64,
+    music_dir: &str,
 ) -> Result<()> {
     // Set up panic handler to ensure terminal cleanup on crashes
     let original_hook = std::panic::take_hook();
@@ -58,6 +66,7 @@ pub fn run_tui(
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
 
     // Delete any lingering kitty images
     cleanup_kitty_images(&mut terminal);
@@ -98,13 +107,24 @@ pub fn run_tui(
     app_state.playback.speed = speed;
 
     for input in &inputs {
-        let title = if input.starts_with("http") { input.clone() }
-        else { std::path::Path::new(input).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| input.clone()) };
-        app_state.queue.push(Track { title, path: input.clone(), duration: 0.0, artist: None, album: None });
+        let title = if input.starts_with("http") {
+            input.clone()
+        } else {
+            std::path::Path::new(input)
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| input.clone())
+        };
+        app_state.queue.push(Track {
+            title,
+            path: input.clone(),
+            duration: 0.0,
+            artist: None,
+            album: None,
+        });
     }
 
-    // Try loading cover for first track
-    try_load_cover(&mut app_state);
+    terminal.draw(|f| render(f, &app_state))?;
 
     let res = tui_loop(&mut terminal, &mut mpv, &mut app_state);
 
@@ -117,13 +137,33 @@ pub fn run_tui(
     res
 }
 
-fn tui_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mpv: &mut Mpv, state: &mut AppState) -> Result<()> {
+fn tui_loop(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    mpv: &mut Mpv,
+    state: &mut AppState,
+) -> Result<()> {
     let mut cover_loaded = false;
+    let mut cover_loading_path: Option<String> = None;
+    let (cover_tx, cover_rx) = mpsc::channel::<(String, Option<Vec<u8>>)>();
+    let mut last_track_path: Option<String> = state
+        .queue
+        .get(state.current_track_idx)
+        .map(|track| track.path.clone());
     let mut last_time = state.playback.time;
     let mut needs_redraw = true;
 
     loop {
         state.clear_old_message();
+
+        let current_track_path = state
+            .queue
+            .get(state.current_track_idx)
+            .map(|track| track.path.clone());
+        if current_track_path != last_track_path {
+            last_track_path = current_track_path;
+            cover_loaded = false;
+            cover_loading_path = None;
+        }
 
         if let Some(event_result) = mpv.wait_event(0.0) {
             match event_result.map_err(|e| anyhow::anyhow!("mpv error: {:?}", e))? {
@@ -149,13 +189,39 @@ fn tui_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mpv: &mut Mpv
             }
         }
 
+        while let Ok((path, data)) = cover_rx.try_recv() {
+            if state
+                .queue
+                .get(state.current_track_idx)
+                .map(|track| track.path.as_str())
+                == Some(path.as_str())
+            {
+                apply_cover_result(state, path, data);
+                cover_loaded = true;
+                needs_redraw = true;
+            }
+            cover_loading_path = None;
+            state.loading = false;
+            state.loading_msg.clear();
+        }
+
         // Load cover art once when track starts (after a delay for MPV to get title)
         if !cover_loaded {
             let time: f64 = mpv.get_property("time-pos").unwrap_or(0.0);
             if state.queue.len() > state.current_track_idx && time > 0.1 {
-                try_load_cover(state);
-                cover_loaded = true;
-                needs_redraw = true;
+                if let Some(path) =
+                    start_cover_load(state, &cover_tx, cover_loading_path.as_deref())
+                {
+                    cover_loading_path = Some(path);
+                    needs_redraw = true;
+                } else if state
+                    .queue
+                    .get(state.current_track_idx)
+                    .map(|track| track.path.starts_with("http"))
+                    .unwrap_or(false)
+                {
+                    cover_loaded = true;
+                }
             }
         }
 
@@ -169,9 +235,13 @@ fn tui_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mpv: &mut Mpv
 
         if event::poll(Duration::from_millis(100))? {
             if let CEvent::Key(key) = event::read()? {
-                if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') { break; }
+                if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+                    break;
+                }
                 match handle_key(key, mpv, state) {
-                    Ok(true) => { needs_redraw = true; }
+                    Ok(true) => {
+                        needs_redraw = true;
+                    }
                     Ok(false) => break,
                     Err(_) => {}
                 }
@@ -204,44 +274,77 @@ fn clear_cover_art(state: &mut AppState) {
     state.playback.last_cover_path.clear();
 }
 
-fn try_load_cover(state: &mut AppState) {
+fn start_cover_load(
+    state: &mut AppState,
+    tx: &mpsc::Sender<(String, Option<Vec<u8>>)>,
+    loading_path: Option<&str>,
+) -> Option<String> {
     if let Some(track) = state.queue.get(state.current_track_idx) {
         let track_path = track.path.clone();
-        if track_path == state.playback.last_cover_path { return; }
-        if track_path.starts_with("http") { return; }
+        if track_path == state.playback.last_cover_path {
+            return None;
+        }
+        if track_path.starts_with("http") {
+            return None;
+        }
+        if loading_path == Some(track_path.as_str()) {
+            return None;
+        }
 
         state.loading = true;
         state.loading_msg = "loading cover".to_string();
+        let tx = tx.clone();
+        let thread_path = track_path.clone();
+        std::thread::spawn(move || {
+            let data = extract_cover_art(&thread_path);
+            let _ = tx.send((thread_path, data));
+        });
+        return Some(track_path);
+    }
+    None
+}
 
-        const MAX_COVER_SIZE: usize = 8 * 1024 * 1024; // 8MB limit
+fn apply_cover_result(state: &mut AppState, track_path: String, data: Option<Vec<u8>>) {
+    const MAX_COVER_SIZE: usize = 8 * 1024 * 1024; // 8MB limit
 
-        if let Some(data) = extract_cover_art(&track_path) {
-            if data.len() > 8 && data.len() <= MAX_COVER_SIZE {
-                let (w, h) = png_dimensions(&data);
+    if let Some(data) = data {
+        if data.len() > 8 && data.len() <= MAX_COVER_SIZE {
+            let (w, h) = png_dimensions(&data);
 
-                // Clear old cover art first to prevent memory leak
-                clear_cover_art(state);
+            // Clear old cover art first to prevent memory leak
+            clear_cover_art(state);
 
-                state.playback.cover_id = state.playback.cover_id.wrapping_add(1);
-                state.playback.cover_art = Some(data);
-                state.playback.cover_w = w;
-                state.playback.cover_h = h;
-                state.playback.last_cover_path = track_path;
-            } else if data.len() > MAX_COVER_SIZE {
-                state.set_message("warning: cover art too large, skipping".to_string());
-            }
+            state.playback.cover_id = state.playback.cover_id.wrapping_add(1);
+            state.playback.cover_art = Some(data);
+            state.playback.cover_w = w;
+            state.playback.cover_h = h;
+            state.playback.last_cover_path = track_path;
+        } else if data.len() > MAX_COVER_SIZE {
+            state.set_message("warning: cover art too large, skipping".to_string());
         }
-
-        state.loading = false;
-        state.loading_msg.clear();
     }
 }
 
 fn extract_cover_art(path: &str) -> Option<Vec<u8>> {
     use std::process::Command;
     let output = Command::new("ffmpeg")
-        .args(["-hide_banner", "-loglevel", "error", "-i", path, "-an", "-vcodec", "png", "-f", "image2pipe", "-vframes", "1", "-"])
-        .output().ok()?;
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            path,
+            "-an",
+            "-vcodec",
+            "png",
+            "-f",
+            "image2pipe",
+            "-vframes",
+            "1",
+            "-",
+        ])
+        .output()
+        .ok()?;
     if output.status.success() && !output.stdout.is_empty() {
         Some(output.stdout)
     } else {
@@ -250,7 +353,9 @@ fn extract_cover_art(path: &str) -> Option<Vec<u8>> {
 }
 
 fn png_dimensions(data: &[u8]) -> (u32, u32) {
-    if data.len() < 24 { return (0, 0); }
+    if data.len() < 24 {
+        return (0, 0);
+    }
     let w = u32::from_be_bytes([data[16], data[17], data[18], data[19]]);
     let h = u32::from_be_bytes([data[20], data[21], data[22], data[23]]);
     (w, h)
@@ -265,35 +370,93 @@ fn update_playback_state(mpv: &Mpv, state: &mut AppState) {
     state.playback.speed = mpv.get_property::<f64>("speed").unwrap_or(1.0);
     state.playback.pitch = mpv.get_property::<f64>("pitch").unwrap_or(1.0);
     state.playback.bitrate_kbps = mpv.get_property::<f64>("audio-bitrate").unwrap_or(0.0) / 1000.0;
-    state.playback.title = mpv.get_property::<String>("media-title").unwrap_or_else(|_| "...".to_string());
+    state.playback.title = mpv
+        .get_property::<String>("media-title")
+        .unwrap_or_else(|_| "...".to_string());
     if let Some(track) = state.queue.get_mut(state.current_track_idx) {
-        if !state.playback.title.is_empty() && state.playback.title != "..." { track.title = state.playback.title.clone(); }
+        if !state.playback.title.is_empty() && state.playback.title != "..." {
+            track.title = state.playback.title.clone();
+        }
     }
 }
 
 fn handle_key(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) -> Result<bool> {
-    if key.code == KeyCode::Char('q') || key.code == KeyCode::Esc { return Ok(false); }
+    if state.input_mode.is_some() {
+        handle_input_key(key, mpv, state);
+        return Ok(true);
+    }
+
+    if key.code == KeyCode::Char('q') {
+        return Ok(false);
+    }
+
+    if key.code == KeyCode::Esc {
+        if state.show_help_popup {
+            state.show_help_popup = false;
+            return Ok(true);
+        }
+        if state.active_tab == Tab::Playlists && !state.playlists.current_tracks.is_empty() {
+            state.playlists.current_tracks.clear();
+            state.playlists.refresh();
+            state.playlists.selected_idx = 0;
+            state.set_message("back to playlists".to_string());
+            return Ok(true);
+        }
+        if state.active_tab == Tab::Library && !state.library.filter.is_empty() {
+            state.library.filter.clear();
+            state.library.selected_idx = 0;
+            state.set_message("filter cleared".to_string());
+            return Ok(true);
+        }
+        return Ok(false);
+    }
 
     if key.code == KeyCode::Tab {
         state.focus = match state.focus {
             Focus::List => Focus::NowPlaying,
-            Focus::NowPlaying => Focus::Player,
-            Focus::Player => Focus::List,
+            Focus::NowPlaying => Focus::List,
         };
         state.set_message(format!("focus: {}", state.focus.label()));
         return Ok(true);
     }
 
     match key.code {
-        KeyCode::F(1) => { state.active_tab = Tab::Queue; if state.active_tab == Tab::Playlists { state.playlists.current_tracks.clear(); } return Ok(true); }
-        KeyCode::F(2) => { state.active_tab = Tab::Library; return Ok(true); }
-        KeyCode::F(3) => { state.active_tab = Tab::Playlists; state.playlists.refresh(); state.playlists.current_tracks.clear(); return Ok(true); }
-        KeyCode::F(4) => { state.active_tab = Tab::Stats; return Ok(true); }
-        KeyCode::Char('?') => { state.show_help_popup = !state.show_help_popup; return Ok(true); }
+        KeyCode::F(1) => {
+            let was_playlists = state.active_tab == Tab::Playlists;
+            state.active_tab = Tab::Queue;
+            if was_playlists {
+                state.playlists.current_tracks.clear();
+            }
+            return Ok(true);
+        }
+        KeyCode::F(2) => {
+            if state.active_tab == Tab::Playlists {
+                state.playlists.current_tracks.clear();
+            }
+            state.active_tab = Tab::Library;
+            return Ok(true);
+        }
+        KeyCode::F(3) => {
+            state.active_tab = Tab::Playlists;
+            state.playlists.refresh();
+            state.playlists.current_tracks.clear();
+            return Ok(true);
+        }
+        KeyCode::F(4) => {
+            if state.active_tab == Tab::Playlists {
+                state.playlists.current_tracks.clear();
+            }
+            state.active_tab = Tab::Stats;
+            return Ok(true);
+        }
+        KeyCode::Char('?') => {
+            state.show_help_popup = !state.show_help_popup;
+            return Ok(true);
+        }
         _ => {}
     }
 
-    if state.focus == Focus::Player {
+    if state.focus == Focus::NowPlaying {
         match key.code {
             KeyCode::Char(' ') => {
                 let p: bool = mpv.get_property("pause").unwrap_or(false);
@@ -311,7 +474,13 @@ fn handle_key(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) -> Result<b
             }
             KeyCode::Char('l') => {
                 state.playback.is_loop = !state.playback.is_loop;
-                if mpv.set_property("loop-file", if state.playback.is_loop { "inf" } else { "no" }).is_err() {
+                if mpv
+                    .set_property(
+                        "loop-file",
+                        if state.playback.is_loop { "inf" } else { "no" },
+                    )
+                    .is_err()
+                {
                     state.set_message("warning: failed to toggle loop".to_string());
                 }
                 return Ok(true);
@@ -369,14 +538,19 @@ fn handle_key(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) -> Result<b
                 return Ok(true);
             }
             KeyCode::Char('0') => {
-                if mpv.set_property("speed", 1.0).is_err() || mpv.set_property("pitch", 1.0).is_err() {
+                if mpv.set_property("speed", 1.0).is_err()
+                    || mpv.set_property("pitch", 1.0).is_err()
+                {
                     state.set_message("warning: failed to reset speed/pitch".to_string());
                 }
                 return Ok(true);
             }
             KeyCode::Char(c) if c.is_digit(10) && c != '0' => {
                 let pct = c.to_digit(10).unwrap() * 10;
-                if mpv.command("seek", &[&pct.to_string(), "absolute-percent"]).is_err() {
+                if mpv
+                    .command("seek", &[&pct.to_string(), "absolute-percent"])
+                    .is_err()
+                {
                     state.set_message("warning: seek failed".to_string());
                 }
                 return Ok(true);
@@ -395,7 +569,10 @@ fn handle_key(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) -> Result<b
                 }
                 return Ok(true);
             }
-            KeyCode::Char('e') => { cycle_eq(mpv, state); return Ok(true); }
+            KeyCode::Char('e') => {
+                cycle_eq(mpv, state);
+                return Ok(true);
+            }
             _ => {}
         }
     }
@@ -412,6 +589,81 @@ fn handle_key(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) -> Result<b
     Ok(true)
 }
 
+fn handle_input_key(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
+    match key.code {
+        KeyCode::Esc => {
+            state.input_mode = None;
+            state.set_message("cancelled".to_string());
+        }
+        KeyCode::Backspace => {
+            if let Some(input) = &mut state.input_mode {
+                input.value.pop();
+            }
+        }
+        KeyCode::Enter => {
+            if let Some(input) = state.input_mode.take() {
+                apply_input(input.action, input.value, mpv, state);
+            }
+        }
+        KeyCode::Char(c) => {
+            if let Some(input) = &mut state.input_mode {
+                input.value.push(c);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn apply_input(action: InputAction, value: String, mpv: &Mpv, state: &mut AppState) {
+    let value = value.trim().to_string();
+    match action {
+        InputAction::ChangeLibraryRoot => {
+            if value.is_empty() {
+                state.set_message("cancelled".to_string());
+                return;
+            }
+            let p = std::path::PathBuf::from(&value);
+            if p.exists() && p.is_dir() {
+                state.library.change_root(p);
+                state.set_message(format!("library: {}", value));
+            } else {
+                state.set_message("error: path does not exist".to_string());
+            }
+        }
+        InputAction::NewPlaylist => {
+            if value.is_empty() {
+                state.set_message("cancelled".to_string());
+            } else if state.playlists.save_playlist(&value, &[]).is_ok() {
+                state.playlists.refresh();
+                state.set_message(format!("created: {}", value));
+            } else {
+                state.set_message("error: failed to create playlist".to_string());
+            }
+        }
+        InputAction::SavePlaylist => {
+            if value.is_empty() {
+                state.set_message("cancelled".to_string());
+            } else if state.playlists.save_playlist(&value, &state.queue).is_ok() {
+                state.playlists.refresh();
+                state.set_message(format!("saved: {}", value));
+            } else {
+                state.set_message("error: failed to save playlist".to_string());
+            }
+        }
+        InputAction::FilterLibrary => {
+            state.library.filter = value;
+            state.library.selected_idx = 0;
+            let count = state.library.visible_entries().len();
+            state.set_message(format!(
+                "filter: {} result{}",
+                count,
+                if count == 1 { "" } else { "s" }
+            ));
+        }
+    }
+    update_playback_state(mpv, state);
+}
+
 fn cycle_eq(mpv: &Mpv, state: &mut AppState) {
     state.eq_preset = (state.eq_preset + 1) % EQ_PRESETS.len();
     let preset = EQ_PRESETS.get(state.eq_preset).unwrap_or(&"");
@@ -422,8 +674,20 @@ fn cycle_eq(mpv: &Mpv, state: &mut AppState) {
 
 fn handle_queue_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
     match key.code {
-        KeyCode::Up | KeyCode::Char('k') => { if state.queue_cursor > 0 { state.queue_cursor -= 1; } else if !state.queue.is_empty() { state.queue_cursor = state.queue.len().saturating_sub(1); } }
-        KeyCode::Down | KeyCode::Char('j') => { if state.queue_cursor + 1 < state.queue.len() { state.queue_cursor += 1; } else { state.queue_cursor = 0; } }
+        KeyCode::Up | KeyCode::Char('k') => {
+            if state.queue_cursor > 0 {
+                state.queue_cursor -= 1;
+            } else if !state.queue.is_empty() {
+                state.queue_cursor = state.queue.len().saturating_sub(1);
+            }
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            if state.queue_cursor + 1 < state.queue.len() {
+                state.queue_cursor += 1;
+            } else {
+                state.queue_cursor = 0;
+            }
+        }
         KeyCode::Enter => {
             if let Some(track) = state.queue.get(state.queue_cursor) {
                 let track_path = track.path.clone();
@@ -441,7 +705,9 @@ fn handle_queue_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
             }
         }
         KeyCode::Char('d') => {
-            if state.queue.is_empty() { return; }
+            if state.queue.is_empty() {
+                return;
+            }
             let idx = state.queue_cursor;
             let was_playing = idx == state.current_track_idx;
 
@@ -498,11 +764,19 @@ fn handle_queue_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
         }
         KeyCode::Char('l') => {
             state.playback.is_loop = !state.playback.is_loop;
-            if mpv.set_property("loop-file", if state.playback.is_loop { "inf" } else { "no" }).is_err() {
+            if mpv
+                .set_property(
+                    "loop-file",
+                    if state.playback.is_loop { "inf" } else { "no" },
+                )
+                .is_err()
+            {
                 state.set_message("warning: failed to toggle loop".to_string());
             }
         }
-        KeyCode::Char('e') => { cycle_eq(mpv, state); }
+        KeyCode::Char('e') => {
+            cycle_eq(mpv, state);
+        }
         _ => {}
     }
 }
@@ -510,19 +784,48 @@ fn handle_queue_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
 fn handle_library_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
     let is_root = state.library.current_dir == state.library.root_dir;
     let offset = if is_root { 0 } else { 1 };
-    let max_idx = state.library.entries.len().saturating_sub(1) + offset;
+    let visible = state.library.visible_entries();
+    let max_idx = visible.len().saturating_sub(1) + offset;
     match key.code {
-        KeyCode::Up | KeyCode::Char('k') => { if state.library.selected_idx > 0 { state.library.selected_idx -= 1; } else if max_idx > 0 { state.library.selected_idx = max_idx; } }
-        KeyCode::Down | KeyCode::Char('j') => { if state.library.selected_idx < max_idx { state.library.selected_idx += 1; } else { state.library.selected_idx = 0; } }
+        KeyCode::Up | KeyCode::Char('k') => {
+            if state.library.selected_idx > 0 {
+                state.library.selected_idx -= 1;
+            } else if max_idx > 0 {
+                state.library.selected_idx = max_idx;
+            }
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            if state.library.selected_idx < max_idx {
+                state.library.selected_idx += 1;
+            } else {
+                state.library.selected_idx = 0;
+            }
+        }
         KeyCode::Enter | KeyCode::Right => {
-            if !is_root && state.library.selected_idx == 0 { state.library.go_to_parent(); return; }
-            let eidx = if is_root { state.library.selected_idx } else { state.library.selected_idx.saturating_sub(1) };
-            if let Some(entry) = state.library.entries.get(eidx).cloned() {
+            if !is_root && state.library.selected_idx == 0 {
+                state.library.go_to_parent();
+                return;
+            }
+            let vidx = if is_root {
+                state.library.selected_idx
+            } else {
+                state.library.selected_idx.saturating_sub(1)
+            };
+            if let Some((eidx, entry)) = visible
+                .get(vidx)
+                .map(|(idx, entry)| (*idx, (*entry).clone()))
+            {
                 match entry {
-                    LibraryEntry::Folder(_) => { state.library.selected_idx = eidx; state.library.enter_folder(); }
+                    LibraryEntry::Folder(_) => {
+                        state.library.selected_idx = eidx;
+                        state.library.enter_folder();
+                    }
                     LibraryEntry::Track(track) => {
                         state.queue.push(track.clone());
-                        if mpv.command("loadfile", &[&track.path, "append-play"]).is_err() {
+                        if mpv
+                            .command("loadfile", &[&track.path, "append-play"])
+                            .is_err()
+                        {
                             state.set_message("warning: failed to add track".to_string());
                         } else {
                             state.set_message(format!("added: {}", track.title));
@@ -533,10 +836,17 @@ fn handle_library_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
         }
         KeyCode::Left | KeyCode::Backspace => state.library.go_to_parent(),
         KeyCode::Char('a') => {
-            let eidx = if is_root { state.library.selected_idx } else { state.library.selected_idx.saturating_sub(1) };
-            if let Some(LibraryEntry::Track(track)) = state.library.entries.get(eidx) {
+            let vidx = if is_root {
+                state.library.selected_idx
+            } else {
+                state.library.selected_idx.saturating_sub(1)
+            };
+            if let Some((_, LibraryEntry::Track(track))) = visible.get(vidx) {
                 state.queue.push(track.clone());
-                if mpv.command("loadfile", &[&track.path, "append-play"]).is_err() {
+                if mpv
+                    .command("loadfile", &[&track.path, "append-play"])
+                    .is_err()
+                {
                     state.set_message("warning: failed to add track".to_string());
                 } else {
                     state.set_message(format!("added: {}", track.title));
@@ -544,27 +854,31 @@ fn handle_library_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
             }
         }
         KeyCode::Char('c') => {
-            disable_raw_mode().ok();
-            let new_path: String = dialoguer::Input::new().with_prompt("library directory").default(state.library.current_dir.to_string_lossy().to_string()).interact_text().unwrap_or_default();
-            enable_raw_mode().ok();
-            if !new_path.is_empty() {
-                let p = std::path::PathBuf::from(&new_path);
-                if p.exists() {
-                    state.library.change_root(p);
-                    state.set_message(format!("library: {}", new_path));
-                } else {
-                    state.set_message("error: path does not exist".to_string());
-                }
-            }
+            state.start_input(
+                InputAction::ChangeLibraryRoot,
+                "library directory",
+                state.library.current_dir.to_string_lossy().to_string(),
+            );
+        }
+        KeyCode::Char('/') => {
+            state.start_input(
+                InputAction::FilterLibrary,
+                "filter library",
+                state.library.filter.clone(),
+            );
         }
         KeyCode::Char('r') => {
-            state.library.scan_current_dir_with_callback(|loading, msg| {
-                state.loading = loading;
-                state.loading_msg = msg.to_string();
-            });
+            state
+                .library
+                .scan_current_dir_with_callback(|loading, msg| {
+                    state.loading = loading;
+                    state.loading_msg = msg.to_string();
+                });
             state.set_message("library scanned".to_string());
         }
-        KeyCode::Char('e') => { cycle_eq(mpv, state); }
+        KeyCode::Char('e') => {
+            cycle_eq(mpv, state);
+        }
         _ => {}
     }
 }
@@ -572,12 +886,28 @@ fn handle_library_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
 fn handle_playlist_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
     let max = state.playlists.total_items();
     match key.code {
-        KeyCode::Up | KeyCode::Char('k') => { if state.playlists.selected_idx > 0 { state.playlists.selected_idx -= 1; } else if max > 0 { state.playlists.selected_idx = max.saturating_sub(1); } }
-        KeyCode::Down | KeyCode::Char('j') => { if state.playlists.selected_idx + 1 < max { state.playlists.selected_idx += 1; } else { state.playlists.selected_idx = 0; } }
+        KeyCode::Up | KeyCode::Char('k') => {
+            if state.playlists.selected_idx > 0 {
+                state.playlists.selected_idx -= 1;
+            } else if max > 0 {
+                state.playlists.selected_idx = max.saturating_sub(1);
+            }
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            if state.playlists.selected_idx + 1 < max {
+                state.playlists.selected_idx += 1;
+            } else {
+                state.playlists.selected_idx = 0;
+            }
+        }
         KeyCode::Enter => {
             if state.playlists.current_tracks.is_empty() {
                 if state.playlists.selected_idx < state.playlists.playlists.len() {
-                    let name = state.playlists.playlists.get(state.playlists.selected_idx).cloned();
+                    let name = state
+                        .playlists
+                        .playlists
+                        .get(state.playlists.selected_idx)
+                        .cloned();
                     if let Some(name) = name {
                         state.playlists.load_playlist(&name);
                         state.set_message(format!("loaded: {}", name));
@@ -592,31 +922,11 @@ fn handle_playlist_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
             state.set_message("back to playlists".to_string());
         }
         KeyCode::Char('n') => {
-            disable_raw_mode().ok();
-            let name: String = dialoguer::Input::new().with_prompt("playlist name").interact_text().unwrap_or_default();
-            enable_raw_mode().ok();
-            if !name.is_empty() {
-                if state.playlists.save_playlist(&name, &[]).is_ok() {
-                    state.playlists.refresh();
-                    state.set_message(format!("created: {}", name));
-                } else {
-                    state.set_message("error: failed to create playlist".to_string());
-                }
-            }
+            state.start_input(InputAction::NewPlaylist, "playlist name", "");
         }
         KeyCode::Char('s') => {
             if !state.queue.is_empty() {
-                disable_raw_mode().ok();
-                let name: String = dialoguer::Input::new().with_prompt("save playlist as").interact_text().unwrap_or_default();
-                enable_raw_mode().ok();
-                if !name.is_empty() {
-                    if state.playlists.save_playlist(&name, &state.queue).is_ok() {
-                        state.playlists.refresh();
-                        state.set_message(format!("saved: {}", name));
-                    } else {
-                        state.set_message("error: failed to save playlist".to_string());
-                    }
-                }
+                state.start_input(InputAction::SavePlaylist, "save playlist as", "");
             } else {
                 state.set_message("error: queue is empty".to_string());
             }
@@ -624,7 +934,11 @@ fn handle_playlist_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
         KeyCode::Char('d') => {
             if state.playlists.current_tracks.is_empty() {
                 if state.playlists.selected_idx < state.playlists.playlists.len() {
-                    let name = state.playlists.playlists.get(state.playlists.selected_idx).cloned();
+                    let name = state
+                        .playlists
+                        .playlists
+                        .get(state.playlists.selected_idx)
+                        .cloned();
                     if let Some(name) = name {
                         if PlaylistManager::delete_playlist(&name).is_ok() {
                             state.playlists.refresh();
@@ -637,16 +951,25 @@ fn handle_playlist_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
             }
         }
         KeyCode::Char('a') => {
-            if let Some(track) = state.playlists.current_tracks.get(state.playlists.selected_idx) {
+            if let Some(track) = state
+                .playlists
+                .current_tracks
+                .get(state.playlists.selected_idx)
+            {
                 state.queue.push(track.clone());
-                if mpv.command("loadfile", &[&track.path, "append-play"]).is_err() {
+                if mpv
+                    .command("loadfile", &[&track.path, "append-play"])
+                    .is_err()
+                {
                     state.set_message("warning: failed to add track".to_string());
                 } else {
                     state.set_message(format!("added: {}", track.title));
                 }
             }
         }
-        KeyCode::Char('e') => { cycle_eq(mpv, state); }
+        KeyCode::Char('e') => {
+            cycle_eq(mpv, state);
+        }
         _ => {}
     }
 }

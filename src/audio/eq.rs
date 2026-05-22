@@ -77,8 +77,8 @@ impl EqState {
             .gains
             .iter()
             .enumerate()
-            .filter(|(_, &g)| g.abs() > 0.01)
-            .map(|(i, &g)| {
+            .filter(|(_, g)| g.abs() > 0.01)
+            .map(|(i, g)| {
                 let freq = EQ_BANDS[i].0;
                 format!("equalizer=f={}:width_type=h:width=200:g={}", freq, g)
             })
@@ -169,7 +169,11 @@ impl EqState {
                 " ".repeat(width.saturating_sub(center))
             )
         } else {
-            format!("{}{}", " ".repeat(center), " ").repeat(1).chars().take(width).collect()
+            format!("{}{}", " ".repeat(center), " ")
+                .repeat(1)
+                .chars()
+                .take(width)
+                .collect()
         }
     }
 

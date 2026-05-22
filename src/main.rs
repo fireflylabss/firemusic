@@ -2,28 +2,28 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use crossterm::{
     cursor, execute,
-    terminal::{disable_raw_mode, enable_raw_mode},
     style::Stylize,
+    terminal::{disable_raw_mode, enable_raw_mode},
 };
 use libmpv2::Mpv;
 use std::io;
 
-mod tactical_select;
-mod player;
+mod audio;
 mod discovery;
 mod download;
-mod audio;
+mod player;
+mod tactical_select;
 mod tui;
 
-use player::{play_loop, PlayLoopResult};
 use discovery::handle_search;
 use download::handle_download;
+use player::{PlayLoopResult, play_loop};
 
 #[derive(Parser, Debug)]
 #[command(
     name = "firemusic",
     author = "FireflyLabs",
-    version = "0.3.0",
+    version = "0.2.5",
     about = "fire music - minimalist high-performance cli music player",
     long_about = "fire music is a tactical cli player designed for pro users. \
                   it features a 'zero-leak' interface, advanced playlist logic, \
@@ -51,9 +51,11 @@ use download::handle_download;
                        msc --tui            full terminal interface (F1-F3 tabs, Tab focus)\n\
                        msc --tui -M ~/music custom library scan dir\n\n\
                      \x1b[1mDISCOVERY:\x1b[0m\n\
-                       msc -s               open interactive hub (youtube, soundcloud, ytm)\n\
+                       msc -s               open interactive hub (youtube, ytm, soundcloud, tiktok)\n\
                        msc -s \"query\"       quick search on youtube\n\
                        msc -s \"sc:query\"    quick search on soundcloud\n\n\
+                       msc -s \"tk:query\"    quick search on tiktok\n\n\
+                       BRAVE_SEARCH_API_KEY improves tiktok search reliability\n\n\
                      \x1b[1mDOWNLOAD:\x1b[0m\n\
                        msc --download       start multi-format interactive wizard\n\
                        msc -d=audio \"url\"    fast high-quality mp3 download\n\
@@ -62,7 +64,7 @@ use download::handle_download;
                        msc song.mp3          play local file with defaults\n\
                        msc --tui             open full terminal interface\n\
                        msc -s \"not like us\"  search and play across providers\n",
-    disable_help_subcommand = true,
+    disable_help_subcommand = true
 )]
 struct Args {
     #[arg(
@@ -74,13 +76,30 @@ struct Args {
     )]
     inputs: Vec<String>,
 
-    #[arg(short, long = "loop", alias = "loop-mode", help = "enable infinite loop mode")]
+    #[arg(
+        short,
+        long = "loop",
+        alias = "loop-mode",
+        help = "enable infinite loop mode"
+    )]
     loop_mode: bool,
 
-    #[arg(short = 'f', long, default_value_t = 1.0, value_name = "F", help = "set initial speed factor")]
+    #[arg(
+        short = 'f',
+        long,
+        default_value_t = 1.0,
+        value_name = "F",
+        help = "set initial speed factor"
+    )]
     speed: f64,
 
-    #[arg(short, long, default_value_t = 100.0, value_name = "L", help = "set initial volume level")]
+    #[arg(
+        short,
+        long,
+        default_value_t = 100.0,
+        value_name = "L",
+        help = "set initial volume level"
+    )]
     volume: f64,
 
     #[arg(
@@ -136,7 +155,14 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     if args.tui {
-        return tui::run_tui(args.inputs, args.crossfade, args.loop_mode, args.volume, args.speed, &args.music_dir);
+        return tui::run_tui(
+            args.inputs,
+            args.crossfade,
+            args.loop_mode,
+            args.volume,
+            args.speed,
+            &args.music_dir,
+        );
     }
 
     if let Some(mode) = args.download {
@@ -176,12 +202,20 @@ fn main() -> Result<()> {
 
     let res = play_loop(&mut mpv, is_loop);
 
-    execute!(stdout, cursor::Show, cursor::MoveToColumn(0), cursor::MoveDown(3))?;
+    execute!(
+        stdout,
+        cursor::Show,
+        cursor::MoveToColumn(0),
+        cursor::MoveDown(3)
+    )?;
     println!();
     disable_raw_mode().ok();
 
     if let Ok(PlayLoopResult::Quit) = res {
-        println!("{}", "\u{2500}\u{2500} fire music session closed \u{2500}\u{2500}".dark_grey());
+        println!(
+            "{}",
+            "\u{2500}\u{2500} fire music session closed \u{2500}\u{2500}".dark_grey()
+        );
     }
     Ok(())
 }

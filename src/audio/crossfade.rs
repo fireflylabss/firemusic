@@ -1,6 +1,5 @@
 #[derive(Debug, Clone)]
 pub struct CrossfadeConfig {
-    #[allow(dead_code)]
     pub enabled: bool,
     pub duration: f64,
 }

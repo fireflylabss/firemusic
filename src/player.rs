@@ -1,15 +1,15 @@
+use crate::audio::eq::EqState;
 use anyhow::Result;
 use crossterm::{
     cursor,
     event::{self, Event as CEvent, KeyCode, KeyModifiers},
     execute, queue,
-    terminal::{self, ClearType},
     style::Stylize,
+    terminal::{self, ClearType},
 };
-use libmpv2::{events::Event as MEvent, Mpv};
+use libmpv2::{Mpv, events::Event as MEvent};
 use std::io::{self, Write};
 use std::time::Duration;
-use crate::audio::eq::EqState;
 
 pub enum PlayLoopResult {
     Quit,
@@ -29,7 +29,9 @@ pub fn render_ui(mpv: &Mpv, is_loop: bool) -> Result<()> {
     let volume = mpv.get_property::<f64>("volume").unwrap_or(0.0);
     let speed = mpv.get_property::<f64>("speed").unwrap_or(1.0);
     let pitch = mpv.get_property::<f64>("pitch").unwrap_or(1.0);
-    let title = mpv.get_property::<String>("media-title").unwrap_or_else(|_| "...".to_string());
+    let title = mpv
+        .get_property::<String>("media-title")
+        .unwrap_or_else(|_| "...".to_string());
     let bitrate = mpv.get_property::<f64>("audio-bitrate").unwrap_or(0.0) / 1000.0;
 
     let af = mpv.get_property::<String>("af").unwrap_or_default();
@@ -85,11 +87,7 @@ pub fn render_ui(mpv: &Mpv, is_loop: bool) -> Result<()> {
     queue!(stdout, cursor::MoveToNextLine(1), cursor::MoveToColumn(0))?;
 
     execute!(stdout, terminal::Clear(ClearType::CurrentLine))?;
-    let progress = if duration > 0.0 {
-        time / duration
-    } else {
-        0.0
-    };
+    let progress = if duration > 0.0 { time / duration } else { 0.0 };
     let time_str = format!(
         "{:02}:{:02} / {:02}:{:02}",
         (time / 60.) as i32,
@@ -160,8 +158,7 @@ pub fn play_loop(mpv: &mut Mpv, mut is_loop: bool) -> Result<PlayLoopResult> {
         }
         if event::poll(Duration::from_millis(0))? {
             if let CEvent::Key(key) = event::read()? {
-                if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c')
-                {
+                if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
                     break;
                 }
                 match key.code {
@@ -183,11 +180,8 @@ pub fn play_loop(mpv: &mut Mpv, mut is_loop: bool) -> Result<PlayLoopResult> {
                         } else if af.contains("treble") && !af.contains("bass") {
                             mpv.set_property("af", "bass=g=10,treble=g=10").ok();
                         } else if af.contains("bass") && af.contains("treble") {
-                            mpv.set_property(
-                                "af",
-                                "equalizer=f=1000:width_type=h:width=200:g=10",
-                            )
-                            .ok();
+                            mpv.set_property("af", "equalizer=f=1000:width_type=h:width=200:g=10")
+                                .ok();
                         } else if af.contains("1000") {
                             mpv.set_property(
                                 "af",
@@ -280,7 +274,10 @@ pub fn eq_mode_overlay(mpv: &Mpv) -> Result<()> {
         queue!(stdout, cursor::SavePosition)?;
         queue!(stdout, terminal::Clear(ClearType::FromCursorDown))?;
 
-        print!("{}", "\n".repeat(2.max(w as u16).saturating_sub(2) as usize));
+        print!(
+            "{}",
+            "\n".repeat(2.max(w as u16).saturating_sub(2) as usize)
+        );
 
         let bar_width = (w.saturating_sub(14)).max(10);
         for i in 0..10 {
@@ -384,7 +381,10 @@ fn read_line_raw(buf: &mut String) -> Result<()> {
             if let CEvent::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Enter => break,
-                    KeyCode::Esc => { buf.clear(); break; }
+                    KeyCode::Esc => {
+                        buf.clear();
+                        break;
+                    }
                     KeyCode::Char(c) => {
                         buf.push(c);
                         print!("{}", c);

@@ -17,7 +17,7 @@ pub enum DownloadPreset {
 
 pub struct DownloadConfig {
     format: String,
-    filename: String,
+    title: String,
     is_audio: bool,
     quality: Option<String>,
 }
@@ -50,14 +50,7 @@ fn run_ytdl_preset(url: &str, is_audio: bool) -> Result<()> {
     let mut cmd = Command::new("yt-dlp");
     if is_audio {
         println!("\u{1F525} downloading audio (mp3/best)...");
-        cmd.args([
-            "-x",
-            "--audio-format",
-            "mp3",
-            "--audio-quality",
-            "0",
-            url,
-        ]);
+        cmd.args(["-x", "--audio-format", "mp3", "--audio-quality", "0", url]);
     } else {
         println!("\u{1F525} downloading video (mp4/best)...");
         cmd.args(["-f", "bv+ba/b", "--merge-output-format", "mp4", url]);
@@ -73,10 +66,7 @@ fn run_ytdl_preset(url: &str, is_audio: bool) -> Result<()> {
 }
 
 fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
-    println!(
-        "{}",
-        "\u{1F525} fire music download wizard".bold().yellow()
-    );
+    println!("{}", "\u{1F525} fire music download wizard".bold().yellow());
 
     if urls.is_empty() {
         let url: String = Input::new()
@@ -113,9 +103,7 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
             "flac".to_string(),
             "opus".to_string(),
         ];
-        if let Some(selected) =
-            tactical_select("\u{1F3B5} select audio formats", &formats, true)?
-        {
+        if let Some(selected) = tactical_select("\u{1F3B5} select audio formats", &formats, true)? {
             audio_formats = selected.iter().map(|&i| formats[i].clone()).collect();
         }
     }
@@ -143,11 +131,9 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
                 res_options.sort();
                 res_options.dedup();
                 res_options.push("best".to_string());
-                if let Some(res_idx) = tactical_select(
-                    "\u{1F4FA} select video quality",
-                    &res_options,
-                    false,
-                )? {
+                if let Some(res_idx) =
+                    tactical_select("\u{1F4FA} select video quality", &res_options, false)?
+                {
                     video_quality = res_options[res_idx[0]].clone();
                 }
             }
@@ -155,43 +141,16 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
     }
 
     // 3. Metadata & Extras
-    let mut meta_options =
-        vec!["embed metadata".to_string(), "embed thumbnail".to_string()];
+    let meta_options = vec![
+        "embed metadata".to_string(),
+        "embed thumbnail".to_string(),
+        "check subtitles".to_string(),
+    ];
 
-    // Check if subtitles exist
-    let mut available_subs = Vec::new();
-    if !urls.is_empty() {
-        print!("\r\x1b[K\u{1F50D} checking for subtitles...");
-        io::stdout().flush().unwrap();
-        let sub_check = Command::new("yt-dlp")
-            .args(["--list-subs", "--flat-playlist", &urls[0]])
-            .output()?;
-        print!("\r\x1b[K");
-        let sub_out = String::from_utf8_lossy(&sub_check.stdout);
-
-        let mut in_subs = false;
-        for line in sub_out.lines() {
-            if line.contains("Language") && line.contains("Formats") {
-                in_subs = true;
-                continue;
-            }
-            if in_subs && !line.trim().is_empty() {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    available_subs.push(format!("{} - {}", parts[0], parts[1]));
-                }
-            }
-        }
-    }
-
-    let compatible_for_subs =
-        audio_formats.iter().any(|f| f == "m4a") || !video_formats.is_empty();
-    if !available_subs.is_empty() {
-        meta_options.push("download subtitles".to_string());
-    }
+    let compatible_for_subs = audio_formats.iter().any(|f| f == "m4a") || !video_formats.is_empty();
 
     let mut common_args = Vec::new();
-    let mut download_subs = false;
+    let mut check_subs = false;
 
     if let Some(meta_selected) = tactical_select(
         "\u{2728} extra features (space to toggle, enter to confirm)",
@@ -202,49 +161,70 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
             match meta_options[idx].as_str() {
                 "embed metadata" => common_args.push("--embed-metadata".to_string()),
                 "embed thumbnail" => common_args.push("--embed-thumbnail".to_string()),
-                "download subtitles" => download_subs = true,
+                "check subtitles" => check_subs = true,
                 _ => {}
             }
         }
     }
 
-    if download_subs {
-        let sub_types = vec![
-            "integrated (embedded in file)".to_string(),
-            "separate file (.srt/.vtt)".to_string(),
-        ];
-        let prompt = if compatible_for_subs {
-            "\u{1F4DD} how would you like the subtitles?"
+    if check_subs {
+        let mut available_subs = Vec::new();
+        if !urls.is_empty() {
+            print!("\r\x1b[K\u{1F50D} checking for subtitles...");
+            io::stdout().flush().unwrap();
+            let sub_check = Command::new("yt-dlp")
+                .args(["--list-subs", "--flat-playlist", &urls[0]])
+                .output()?;
+            print!("\r\x1b[K");
+            let sub_out = String::from_utf8_lossy(&sub_check.stdout);
+
+            let mut in_subs = false;
+            for line in sub_out.lines() {
+                if line.contains("Language") && line.contains("Formats") {
+                    in_subs = true;
+                    continue;
+                }
+                if in_subs && !line.trim().is_empty() {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        available_subs.push(format!("{} - {}", parts[0], parts[1]));
+                    }
+                }
+            }
+        }
+
+        if available_subs.is_empty() {
+            println!("\u{2139} no subtitles available for this media.");
         } else {
-            "\u{1F4DD} format incompatible for embedding. save as separate file?"
-        };
+            let sub_types = vec![
+                "integrated (embedded in file)".to_string(),
+                "separate file (.srt/.vtt)".to_string(),
+            ];
+            let prompt = if compatible_for_subs {
+                "\u{1F4DD} how would you like the subtitles?"
+            } else {
+                "\u{1F4DD} format incompatible for embedding. save as separate file?"
+            };
 
-        if let Some(choice) = tactical_select(prompt, &sub_types, false)? {
-            let method = choice[0];
+            if let Some(choice) = tactical_select(prompt, &sub_types, false)? {
+                let method = choice[0];
 
-            if let Some(selected_subs) = tactical_select(
-                "\u{1F30D} select subtitle languages",
-                &available_subs,
-                true,
-            )? {
-                let langs: Vec<String> = selected_subs
-                    .iter()
-                    .map(|&i| {
-                        available_subs[i]
-                            .split(" - ")
-                            .next()
-                            .unwrap()
-                            .to_string()
-                    })
-                    .collect();
-                common_args.push("--sub-langs".to_string());
-                common_args.push(langs.join(","));
+                if let Some(selected_subs) =
+                    tactical_select("\u{1F30D} select subtitle languages", &available_subs, true)?
+                {
+                    let langs: Vec<String> = selected_subs
+                        .iter()
+                        .map(|&i| available_subs[i].split(" - ").next().unwrap().to_string())
+                        .collect();
+                    common_args.push("--sub-langs".to_string());
+                    common_args.push(langs.join(","));
 
-                if method == 0 && compatible_for_subs {
-                    common_args.push("--embed-subs".to_string());
-                } else {
-                    common_args.push("--write-subs".to_string());
-                    common_args.push("--write-auto-subs".to_string());
+                    if method == 0 && compatible_for_subs {
+                        common_args.push("--embed-subs".to_string());
+                    } else {
+                        common_args.push("--write-subs".to_string());
+                        common_args.push("--write-auto-subs".to_string());
+                    }
                 }
             }
         }
@@ -254,10 +234,18 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
     for url in urls {
         println!("\n\u{1F680} processing: {}", url.clone().cyan());
         let output = Command::new("yt-dlp").args(["-j", &url]).output()?;
+        if !output.status.success() {
+            println!(
+                "\u{274C} failed to fetch metadata for {}\n{}",
+                url,
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+            continue;
+        }
         let info = match serde_json::from_slice::<YtdlInfo>(&output.stdout) {
             Ok(i) => i,
-            Err(_) => {
-                println!("\u{274C} failed to fetch metadata for {}", url);
+            Err(err) => {
+                println!("\u{274C} failed to parse metadata for {}: {}", url, err);
                 continue;
             }
         };
@@ -266,7 +254,7 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
         for fmt in &audio_formats {
             configs.push(DownloadConfig {
                 format: fmt.clone(),
-                filename: info.title.clone(),
+                title: info.title.clone(),
                 is_audio: true,
                 quality: None,
             });
@@ -274,7 +262,7 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
         for fmt in &video_formats {
             configs.push(DownloadConfig {
                 format: fmt.clone(),
-                filename: info.title.clone(),
+                title: info.title.clone(),
                 is_audio: false,
                 quality: Some(video_quality.clone()),
             });
@@ -284,7 +272,7 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
             println!(
                 "   \u{1F4E5} downloading [{}]: {}",
                 config.format.clone().cyan(),
-                config.filename.clone().white().bold()
+                config.title.clone().white().bold()
             );
             let mut cmd = Command::new("yt-dlp");
             cmd.args(&common_args);
@@ -312,9 +300,12 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
                 };
                 cmd.args(["-f", &res_filter, "--merge-output-format", &config.format]);
             }
-            cmd.args(["-o", &format!("{}.%(ext)s", config.filename)]);
+            cmd.args(["-o", "%(title).200B [%(id)s].%(ext)s"]);
             cmd.arg(&url);
-            cmd.spawn()?.wait()?;
+            let status = cmd.spawn()?.wait()?;
+            if !status.success() {
+                println!("\u{274C} download failed for {}", url);
+            }
         }
     }
     println!("\n\u{2705} all operations complete.");
