@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-06-07
+
+### Added
+- **Help Subcommands:** Added `msc help <topic>` system with four dedicated pages: `discovery`, `download`, `interface`, and `controls`. Each topic shows focused, formatted documentation.
+- **`-H` Help Flag:** Added `-H` as a visible alias for `-h`/`--help`.
+- **Controls Table:** Playback controls help page (`msc help controls`) now renders as a box-drawing table with Key/Action columns.
+
+### Changed
+- **Slim Main Help:** `msc -h` now shows only OPTIONS and a COMMANDS index. All detailed documentation (controls, modes, discovery, download, examples) moved to dedicated `msc help <topic>` pages, following the UNIX convention used by `git`, `gh`, `bun`, and similar tools.
+- **Help Template:** Redesigned with colored title, consistent indentation, and aligned columns across all sections.
+- **Option Descriptions:** Shortened and capitalized all `--help` descriptions (e.g., "Download media", "Search and play music", "Set volume level").
+- **Value Names:** `--speed <F>` renamed to `--speed <FACTOR>`, `--volume <L>` to `--volume <LEVEL>` for clarity.
+- **Music Dir Flag:** Changed `-M` to `-m` for `--music-dir`.
+- **Topic Pages:** Discovery, download, and interface help pages show only the argument (e.g., `-s`, `--tui`) instead of the full `msc -s` invocation.
+
+### Fixed
+- **Brace Escape Bug:** Fixed `{ / }}` rendering in the controls display — now correctly shows `{ / }`.
+
 ## [0.2.5] - 2026-05-22
 
 ### Added

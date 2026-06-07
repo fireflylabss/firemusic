@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{CommandFactory, Parser, Subcommand};
 use crossterm::{
     cursor, execute,
     style::Stylize,
@@ -11,6 +11,7 @@ use std::io;
 mod audio;
 mod discovery;
 mod download;
+mod help_topics;
 mod player;
 mod tactical_select;
 mod tui;
@@ -23,50 +24,33 @@ use player::{PlayLoopResult, play_loop};
 #[command(
     name = "firemusic",
     author = "FireflyLabs",
-    version = "0.2.5",
-    about = "fire music - minimalist high-performance cli music player",
-    long_about = "fire music is a tactical cli player designed for pro users. \
-                  it features a 'zero-leak' interface, advanced playlist logic, \
-                  and an integrated multi-format download system via yt-dlp.",
-    help_template = "\x1b[1m{name} v{version}\x1b[0m - {about}\n\n\
-                     \x1b[1m{usage-heading}\x1b[0m {usage}\n\n\
-                     \x1b[1mOPTIONS:\x1b[0m\n\
-                     {options}\n\n\
-                     \x1b[1mCONTROLS:\x1b[0m\n\
-                       space                pause / resume\n\
-                       \u{2190} / \u{2192}, h / l         seek 5s\n\
-                       {{ / }}                seek 1m\n\
-                       \u{2191} / \u{2193}, k / j         volume +/-\n\
-                       1 - 9                jump to % (10-90%)\n\
-                       0                    reset speed/pitch/eq\n\
-                       + / -                speed +/-\n\
-                       , / .                pitch down / up\n\
-                       e                    cycle equalizer\n\
-                       E                    eq mode (per-band adjustment)\n\
-                       l                    toggle loop mode\n\
-                       m                    toggle mute\n\
-                       s                    back to search menu (at end)\n\
-                       q, esc               quit session\n\n\
-                     \x1b[1mMODES:\x1b[0m\n\
-                       msc --tui            full terminal interface (F1-F3 tabs, Tab focus)\n\
-                       msc --tui -M ~/music custom library scan dir\n\n\
-                     \x1b[1mDISCOVERY:\x1b[0m\n\
-                       msc -s               open interactive hub (youtube, ytm, soundcloud, tiktok)\n\
-                       msc -s \"query\"       quick search on youtube\n\
-                       msc -s \"sc:query\"    quick search on soundcloud\n\n\
-                       msc -s \"tk:query\"    quick search on tiktok\n\n\
-                       BRAVE_SEARCH_API_KEY improves tiktok search reliability\n\n\
-                     \x1b[1mDOWNLOAD:\x1b[0m\n\
-                       msc --download       start multi-format interactive wizard\n\
-                       msc -d=audio \"url\"    fast high-quality mp3 download\n\
-                       msc -d=video \"url\"    fast 1080p mp4 download\n\n\
-                     \x1b[1mEXAMPLES:\x1b[0m\n\
-                       msc song.mp3          play local file with defaults\n\
-                       msc --tui             open full terminal interface\n\
-                       msc -s \"not like us\"  search and play across providers\n",
+    version = "0.2.6",
+    about = "minimalist high-performance CLI music player",
+    long_about = "FireMusic is a tactical CLI player for power users.\n\
+                  Zero-leak interface, advanced playlist logic, built-in EQ,\n\
+                  and multi-format download via yt-dlp.",
+    help_template = "\x1b[1;33m{name}\x1b[0m v{version} \u{2014} {about}\n\n\
+                     \x1b[1mUSAGE:\x1b[0m\n    {usage}\n\n\
+                     \x1b[1mOPTIONS:\x1b[0m\n{options}\n\
+                     \n\
+                     \x1b[1mCOMMANDS:\x1b[0m\n\
+                     \x20   help discovery        Search across providers\n\
+                     \x20   help download         Download audio or video\n\
+                     \x20   help interface        TUI and interface options\n\
+                     \x20   help controls         Playback keyboard controls\n",
+    disable_help_flag = true,
     disable_help_subcommand = true
 )]
 struct Args {
+    #[arg(
+        short = 'h',
+        visible_short_alias = 'H',
+        long,
+        action = clap::ArgAction::Help,
+        help = "Show help"
+    )]
+    help: Option<bool>,
+
     #[arg(
         required_unless_present = "download",
         required_unless_present = "search",
@@ -80,7 +64,7 @@ struct Args {
         short,
         long = "loop",
         alias = "loop-mode",
-        help = "enable infinite loop mode"
+        help = "Enable infinite playback"
     )]
     loop_mode: bool,
 
@@ -88,8 +72,8 @@ struct Args {
         short = 'f',
         long,
         default_value_t = 1.0,
-        value_name = "F",
-        help = "set initial speed factor"
+        value_name = "FACTOR",
+        help = "Set playback speed factor"
     )]
     speed: f64,
 
@@ -97,8 +81,8 @@ struct Args {
         short,
         long,
         default_value_t = 100.0,
-        value_name = "L",
-        help = "set initial volume level"
+        value_name = "LEVEL",
+        help = "Set volume level"
     )]
     volume: f64,
 
@@ -109,7 +93,7 @@ struct Args {
         value_name = "MODE",
         require_equals = true,
         default_missing_value = "interactive",
-        help = "start download wizard or use a preset (audio/video)"
+        help = "Download media"
     )]
     download: Option<String>,
 
@@ -120,7 +104,7 @@ struct Args {
         value_name = "QUERY",
         require_equals = false,
         default_missing_value = "",
-        help = "search and play or download music interactively"
+        help = "Search and play music"
     )]
     search: Option<String>,
 
@@ -128,7 +112,7 @@ struct Args {
         short = 't',
         long = "tui",
         default_value_t = false,
-        help = "launch full terminal user interface"
+        help = "Launch terminal user interface"
     )]
     tui: bool,
 
@@ -137,21 +121,60 @@ struct Args {
         long = "crossfade",
         default_value_t = 0.0,
         value_name = "SECONDS",
-        help = "crossfade duration between tracks in seconds (0 = disabled)"
+        help = "Set crossfade duration"
     )]
     crossfade: f64,
 
     #[arg(
-        short = 'M',
+        short = 'm',
         long = "music-dir",
         default_value = "",
         value_name = "DIR",
-        help = "directory to scan for local music library (default: ~/Music)"
+        hide_default_value = true,
+        help = "Set local music library path"
     )]
     music_dir: String,
 }
 
+#[derive(Subcommand, Debug)]
+enum HelpTopicCmd {
+    /// Search across providers
+    Discovery,
+    /// Download audio or video
+    Download,
+    /// TUI and interface options
+    Interface,
+    /// Playback keyboard controls
+    Controls,
+}
+
 fn main() -> Result<()> {
+    let raw: Vec<String> = std::env::args().collect();
+    if raw.len() >= 2 && raw[1] == "help" {
+        if raw.len() == 2 {
+            Args::command().name("msc").print_help().ok();
+            println!();
+            return Ok(());
+        }
+        #[derive(Parser)]
+        #[command(name = "msc help")]
+        struct HelpCli {
+            #[command(subcommand)]
+            topic: HelpTopicCmd,
+        }
+        let help_args: Vec<String> = std::iter::once("msc help".to_string())
+            .chain(raw[2..].iter().cloned())
+            .collect();
+        let cli = HelpCli::try_parse_from(&help_args).unwrap_or_else(|e| e.exit());
+        match cli.topic {
+            HelpTopicCmd::Discovery => help_topics::discovery(),
+            HelpTopicCmd::Download => help_topics::download(),
+            HelpTopicCmd::Interface => help_topics::interface(),
+            HelpTopicCmd::Controls => help_topics::controls(),
+        }
+        return Ok(());
+    }
+
     let args = Args::parse();
 
     if args.tui {
