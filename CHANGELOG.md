@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-06-08
+
+### Added
+- **Spotify-style GUI:** Dark layout with sidebar nav, hero header, track rows, playlist cards, and fixed bottom player bar.
+- **Real backend link:** `connectBackend()` with Tauri `ping`, live `state` events, 500ms poll fallback, and connection status indicator.
+- **Playback commands:** `seek_to`, `next_track`, `prev_track`; all commands return fresh `GuiSnapshot` from Rust.
+
+### Changed
+- **GUI components:** Split into `Sidebar`, `PlayerBar`, `TrackTable` with scrubber + volume slider wired to MPV.
+- **Snapshot:** Adds `revision` and `backend_online` fields for live sync detection.
+
 ## [0.3.0] - 2026-06-08
 
 ### Added

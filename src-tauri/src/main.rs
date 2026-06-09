@@ -57,6 +57,7 @@ fn run() -> anyhow::Result<()> {
         .manage(runtime)
         .invoke_handler(tauri::generate_handler![
             commands::get_snapshot,
+            commands::ping,
             commands::set_tab,
             commands::library_select,
             commands::library_enter,
@@ -69,6 +70,9 @@ fn run() -> anyhow::Result<()> {
             commands::queue_remove,
             commands::toggle_pause,
             commands::seek,
+            commands::seek_to,
+            commands::next_track,
+            commands::prev_track,
             commands::set_volume,
             commands::toggle_mute,
             commands::toggle_loop,
@@ -82,7 +86,7 @@ fn run() -> anyhow::Result<()> {
             let rt = Arc::clone(&runtime_setup);
             std::thread::spawn(move || {
                 loop {
-                    std::thread::sleep(std::time::Duration::from_millis(150));
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                     let snap = rt.snapshot();
                     let _ = handle.emit("state", &snap);
                 }

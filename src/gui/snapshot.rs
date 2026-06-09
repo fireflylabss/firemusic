@@ -27,6 +27,8 @@ pub struct PlaybackDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GuiSnapshot {
+    pub revision: u64,
+    pub backend_online: bool,
     pub tab: String,
     pub queue: Vec<TrackDto>,
     pub queue_cursor: usize,

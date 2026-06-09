@@ -30,6 +30,9 @@ pub enum GuiCommand {
     SetVolume(f64),
     ToggleMute,
     ToggleLoop,
+    SeekTo(f64),
+    NextTrack,
+    PrevTrack,
     PlaylistSelect(usize),
     PlaylistLoad,
     PlaylistBack,
@@ -131,6 +134,7 @@ fn worker_loop(
     let mut cover_bytes: Option<Vec<u8>> = None;
     let mut cover_path = String::new();
     let mut last_track: Option<String> = None;
+    let mut revision: u64 = 0;
 
     loop {
         while let Ok(cmd) = cmd_rx.try_recv() {
@@ -177,12 +181,13 @@ fn worker_loop(
             }
         }
 
-        let snap = build_snapshot(&state, &cover_bytes, &cover_path);
+        revision = revision.wrapping_add(1);
+        let snap = build_snapshot(&state, &cover_bytes, &cover_path, revision);
         if let Ok(mut guard) = snapshot.lock() {
             *guard = snap;
         }
 
-        thread::sleep(Duration::from_millis(120));
+        thread::sleep(Duration::from_millis(100));
     }
 }
 
@@ -269,7 +274,39 @@ fn handle_command(mpv: &Mpv, state: &mut AppState, cmd: GuiCommand) {
         }
         GuiCommand::Seek(delta) => {
             let pos: f64 = mpv.get_property("time-pos").unwrap_or(0.0);
-            let _ = mpv.set_property("time-pos", (pos + delta).max(0.0));
+            let dur: f64 = mpv.get_property("duration").unwrap_or(0.0);
+            let next = (pos + delta).clamp(0.0, dur.max(0.0));
+            let _ = mpv.set_property("time-pos", next);
+        }
+        GuiCommand::SeekTo(pos) => {
+            let dur: f64 = mpv.get_property("duration").unwrap_or(0.0);
+            let clamped = pos.clamp(0.0, dur.max(0.0));
+            let _ = mpv.set_property("time-pos", clamped);
+        }
+        GuiCommand::NextTrack => {
+            if state.current_track_idx + 1 < state.queue.len() {
+                let idx = state.current_track_idx + 1;
+                state.current_track_idx = idx;
+                state.queue_cursor = idx;
+                let track = &state.queue[idx];
+                let _ = mpv.command("loadfile", &[&track.path, "replace"]);
+                state.set_message(format!("playing: {}", track.title));
+            }
+        }
+        GuiCommand::PrevTrack => {
+            let pos: f64 = mpv.get_property("time-pos").unwrap_or(0.0);
+            if pos > 3.0 {
+                let _ = mpv.set_property("time-pos", 0.0);
+            } else if state.current_track_idx > 0 {
+                let idx = state.current_track_idx - 1;
+                state.current_track_idx = idx;
+                state.queue_cursor = idx;
+                let track = &state.queue[idx];
+                let _ = mpv.command("loadfile", &[&track.path, "replace"]);
+                state.set_message(format!("playing: {}", track.title));
+            } else {
+                let _ = mpv.set_property("time-pos", 0.0);
+            }
         }
         GuiCommand::SetVolume(vol) => {
             let v = vol.clamp(0.0, 100.0);
@@ -345,6 +382,7 @@ fn build_snapshot(
     state: &AppState,
     cover_bytes: &Option<Vec<u8>>,
     cover_path: &str,
+    revision: u64,
 ) -> GuiSnapshot {
     let library_is_root = state.library.current_dir == state.library.root_dir;
     let mut library_entries = Vec::new();
@@ -374,6 +412,8 @@ fn build_snapshot(
     });
 
     GuiSnapshot {
+        revision,
+        backend_online: true,
         tab: tab_name(state.active_tab).to_string(),
         queue: state
             .queue

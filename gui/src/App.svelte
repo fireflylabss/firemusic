@@ -2,218 +2,202 @@
   import { onMount } from "svelte";
   import {
     api,
+    connectBackend,
     emptySnapshot,
-    fetchSnapshot,
-    onState,
+    type ConnectionStatus,
     type GuiSnapshot,
     type LibraryEntryDto,
   } from "./lib/api";
+  import Sidebar from "./components/Sidebar.svelte";
+  import PlayerBar from "./components/PlayerBar.svelte";
+  import TrackTable from "./components/TrackTable.svelte";
 
   let snap = $state<GuiSnapshot>(emptySnapshot());
   let filterInput = $state("");
+  let connection = $state<ConnectionStatus>("connecting");
+  let connectionDetail = $state<string | undefined>();
 
-  const tabs = [
-    { id: "queue", label: "Queue" },
-    { id: "library", label: "Library" },
-    { id: "playlists", label: "Playlists" },
-  ];
+  const sectionTitle = $derived(
+    snap.tab === "queue"
+      ? "Queue"
+      : snap.tab === "library"
+        ? "Your Library"
+        : snap.playlist_viewing
+          ? "Playlist"
+          : "Playlists",
+  );
 
-  function fmtTime(sec: number) {
-    const s = Math.max(0, Math.floor(sec));
-    const m = Math.floor(s / 60);
-    const r = s % 60;
-    return `${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
-  }
-
-  function progressPct() {
-    if (snap.playback.duration <= 0) return 0;
-    return (snap.playback.time / snap.playback.duration) * 100;
-  }
-
-  function coverSrc() {
-    return snap.cover_base64 ? `data:image/png;base64,${snap.cover_base64}` : null;
-  }
-
-  function entryLabel(entry: LibraryEntryDto) {
-    if (entry.kind === "folder") return entry.name === ".." ? "⬅ .." : `📁 ${entry.name}`;
-    return `🎵 ${entry.title}`;
-  }
-
-  async function setTab(tab: string) {
-    await api.setTab(tab);
+  async function navigate(tab: string) {
+    const next = await api.setTab(tab);
+    snap = next;
   }
 
   async function applyFilter() {
-    await api.libraryFilter(filterInput);
+    const next = await api.libraryFilter(filterInput);
+    snap = next;
+  }
+
+  let filterTimer: ReturnType<typeof setTimeout> | undefined;
+  function onFilterInput() {
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(() => applyFilter(), 320);
+  }
+
+  function entryRows(entries: LibraryEntryDto[]) {
+    return entries.map((e, i) => ({
+      i,
+      title:
+        e.kind === "folder"
+          ? e.name === ".."
+            ? "Go back"
+            : e.name
+          : e.title,
+      isFolder: e.kind === "folder",
+    }));
   }
 
   onMount(() => {
-    let unlisten: (() => void) | undefined;
-
-    (async () => {
-      try {
-        snap = await fetchSnapshot();
-      } catch {
-        /* browser preview without tauri */
-      }
-      unlisten = await onState((s) => {
+    let cleanup: (() => void) | undefined;
+    connectBackend(
+      (s) => {
         snap = s;
         if (snap.tab === "library" && filterInput !== snap.library_filter) {
           filterInput = snap.library_filter;
         }
-      });
-    })();
-
-    return () => unlisten?.();
+      },
+      (status, detail) => {
+        connection = status;
+        connectionDetail = detail;
+      },
+    ).then((fn) => {
+      cleanup = fn;
+    });
+    return () => cleanup?.();
   });
 </script>
 
-<div class="app-shell">
-  <header class="titlebar">🔥 Firemusic</header>
+<div class="app">
+  <Sidebar
+    tab={snap.tab}
+    queueCount={snap.queue.length}
+    libraryPath={snap.library_path}
+    onNavigate={navigate}
+  />
 
-  <div class="body">
-    <aside class="sidebar">
-      <h3>Playback</h3>
-      <div class="stat"><span>Volume</span><strong>{Math.round(snap.playback.volume)}%</strong></div>
-      <div class="stat"><span>Speed</span><strong>{snap.playback.speed.toFixed(1)}x</strong></div>
-      <div class="stat"><span>Loop</span><strong>{snap.playback.is_loop ? "on" : "off"}</strong></div>
-      <div class="stat"><span>Muted</span><strong>{snap.playback.muted ? "yes" : "no"}</strong></div>
+  <main class="main">
+    <header class="top">
+      <div class="hero">
+        <p class="eyebrow">FireSuite</p>
+        <h1>{sectionTitle}</h1>
+      </div>
+      <div class="status" class:live={connection === "live"} class:err={connection === "error"}>
+        {#if connection === "live"}
+          <span class="dot"></span> Backend live · rev {snap.revision}
+        {:else if connection === "connecting"}
+          Connecting to Rust backend…
+        {:else}
+          {connectionDetail ?? "Offline"}
+        {/if}
+      </div>
+    </header>
 
-      <h3 style="margin-top: 1rem">Library</h3>
-      <div class="stat"><span>Path</span><strong>{snap.library_path}</strong></div>
-      <div class="stat"><span>Queue</span><strong>{snap.queue.length} tracks</strong></div>
-    </aside>
-
-    <section class="main">
-      <nav class="tabs">
-        {#each tabs as tab}
-          <button class:active={snap.tab === tab.id} onclick={() => setTab(tab.id)}>
-            {tab.label}
-          </button>
-        {/each}
-      </nav>
-
-      {#if snap.tab === "queue"}
-        <div class="panel">
-          {#if snap.queue.length === 0}
-            <p class="empty">Queue empty — browse Library to add tracks.</p>
-          {:else}
-            <ul class="list">
-              {#each snap.queue as track, i}
-                <li
-                  class:selected={i === snap.queue_cursor}
-                  class:playing={i === snap.current_track_idx}
-                  onclick={() => api.queueSelect(i)}
-                  ondblclick={() => api.queuePlay(i)}
-                >
-                  <span>{i + 1}.</span> {track.title}
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-      {:else if snap.tab === "library"}
-        <div class="toolbar">
-          <input
-            placeholder="Filter library…"
-            bind:value={filterInput}
-            onkeydown={(e) => e.key === "Enter" && applyFilter()}
-          />
-          <button onclick={applyFilter}>Filter</button>
-          <button onclick={() => api.libraryRescan()}>Rescan</button>
-          <button onclick={() => api.libraryAddSelected()}>Add</button>
-        </div>
-        <div class="panel">
-          {#if snap.library_entries.length === 0}
-            <p class="empty">No entries — check music folder or rescan.</p>
-          {:else}
-            <ul class="list">
-              {#each snap.library_entries as entry, i}
-                <li
-                  class:selected={i === snap.library_selected}
-                  onclick={() => api.librarySelect(i)}
-                  ondblclick={() => api.libraryEnter()}
-                >
-                  {entryLabel(entry)}
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-      {:else if snap.tab === "playlists"}
-        <div class="toolbar">
-          {#if snap.playlist_viewing}
-            <button onclick={() => api.playlistBack()}>Back</button>
-          {:else}
-            <button onclick={() => api.playlistRefresh()}>Refresh</button>
-          {/if}
-          <button class="primary" onclick={() => api.playlistLoad()}>
-            {snap.playlist_viewing ? "Add track" : "Open"}
-          </button>
-        </div>
-        <div class="panel">
-          {#if snap.playlist_viewing}
-            <ul class="list">
-              {#each snap.playlist_tracks as track, i}
-                <li
-                  class:selected={i === snap.playlist_selected}
-                  onclick={() => api.playlistSelect(i)}
-                  ondblclick={() => api.playlistLoad()}
-                >
-                  {i + 1}. {track.title}
-                </li>
-              {/each}
-            </ul>
-          {:else if snap.playlists.length === 0}
-            <p class="empty">No playlists in ~/.config/firemusic/playlists/</p>
-          {:else}
-            <ul class="list">
-              {#each snap.playlists as name, i}
-                <li
-                  class:selected={i === snap.playlist_selected}
-                  onclick={() => api.playlistSelect(i)}
-                  ondblclick={() => api.playlistLoad()}
-                >
-                  📋 {name}
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-      {/if}
-    </section>
-  </div>
-
-  <footer class="now-playing">
-    {#if coverSrc()}
-      <img class="cover" src={coverSrc()} alt="Cover art" />
-    {:else}
-      <div class="cover placeholder">🎵</div>
+    {#if snap.tab === "library"}
+      <div class="search-row">
+        <input
+          class="search"
+          placeholder="Search in library"
+          bind:value={filterInput}
+          oninput={onFilterInput}
+        />
+        <button class="ghost" onclick={() => api.libraryBack()}>Up</button>
+        <button class="ghost" onclick={() => api.libraryRescan()}>Rescan</button>
+        <button class="accent" onclick={() => api.libraryAddSelected()}>Add to queue</button>
+      </div>
     {/if}
 
-    <div class="track-meta">
-      <h2>{snap.playback.title}</h2>
-      <div class="stat" style="margin:0">
-        <span>{fmtTime(snap.playback.time)} / {fmtTime(snap.playback.duration)}</span>
-      </div>
-      <div class="progress"><span style={`width:${progressPct()}%`}></span></div>
-    </div>
-
-    <div class="controls">
-      <button class="primary" onclick={() => api.togglePause()}>
-        {snap.playback.paused ? "Play" : "Pause"}
-      </button>
-      <button onclick={() => api.seek(-5)}>-5s</button>
-      <button onclick={() => api.seek(5)}>+5s</button>
-      <button onclick={() => api.toggleMute()}>Mute</button>
-      <button onclick={() => api.toggleLoop()}>Loop</button>
-      <button onclick={() => api.setVolume(Math.min(100, snap.playback.volume + 5))}>Vol+</button>
-      <button onclick={() => api.setVolume(Math.max(0, snap.playback.volume - 5))}>Vol-</button>
-      {#if snap.tab === "queue" && snap.queue.length > 0}
-        <button onclick={() => api.queueRemove(snap.queue_cursor)}>Remove</button>
+    <section class="content">
+      {#if snap.tab === "queue"}
+        <TrackTable
+          tracks={snap.queue}
+          selected={snap.queue_cursor}
+          playing={snap.current_track_idx}
+          showRemove
+          onSelect={(i) => api.queueSelect(i).then((s) => (snap = s))}
+          onPlay={(i) => api.queuePlay(i).then((s) => (snap = s))}
+          onRemove={(i) => api.queueRemove(i).then((s) => (snap = s))}
+        />
+      {:else if snap.tab === "library"}
+        {#if snap.library_entries.length === 0}
+          <p class="empty">No tracks in {snap.library_path}. Try Rescan.</p>
+        {:else}
+          <div class="table">
+            <div class="thead"><span>#</span><span>Name</span><span></span></div>
+            {#each entryRows(snap.library_entries) as row}
+              <button
+                class="row"
+                class:selected={row.i === snap.library_selected}
+                onclick={() => api.librarySelect(row.i).then((s) => (snap = s))}
+                ondblclick={() => api.libraryEnter().then((s) => (snap = s))}
+              >
+                <span class="idx">{row.isFolder ? "📁" : "♫"}</span>
+                <span class="title">{row.title}</span>
+                <span class="actions">
+                  {#if !row.isFolder}
+                    <span
+                      class="play-hint"
+                      role="button"
+                      tabindex="0"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        api.librarySelect(row.i).then(() => api.libraryAddSelected()).then((s) => (snap = s));
+                      }}
+                    >+</span>
+                  {/if}
+                </span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      {:else if snap.playlist_viewing}
+        <div class="search-row">
+          <button class="ghost" onclick={() => api.playlistBack().then((s) => (snap = s))}>← Playlists</button>
+        </div>
+        <TrackTable
+          tracks={snap.playlist_tracks}
+          selected={snap.playlist_selected}
+          playing={-1}
+          onSelect={(i) => api.playlistSelect(i).then((s) => (snap = s))}
+          onPlay={() => api.playlistLoad().then((s) => (snap = s))}
+        />
+      {:else}
+        <div class="search-row">
+          <button class="ghost" onclick={() => api.playlistRefresh().then((s) => (snap = s))}>Refresh</button>
+        </div>
+        {#if snap.playlists.length === 0}
+          <p class="empty">No playlists in ~/.config/firemusic/playlists/</p>
+        {:else}
+          <div class="playlist-grid">
+            {#each snap.playlists as name, i}
+              <button
+                class="card"
+                class:selected={i === snap.playlist_selected}
+                onclick={() => api.playlistSelect(i).then((s) => (snap = s))}
+                ondblclick={() => api.playlistLoad().then((s) => (snap = s))}
+              >
+                <div class="card-art">📋</div>
+                <p class="card-title">{name}</p>
+                <p class="card-sub">Playlist</p>
+              </button>
+            {/each}
+          </div>
+        {/if}
       {/if}
-    </div>
-  </footer>
+    </section>
 
-  <div class="statusbar">{snap.status_msg ?? "Ready"}</div>
+    {#if snap.status_msg}
+      <div class="toast">{snap.status_msg}</div>
+    {/if}
+  </main>
+
+  <PlayerBar {snap} />
 </div>
