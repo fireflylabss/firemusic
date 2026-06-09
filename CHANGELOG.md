@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-06-08
+
+### Added
+- **Desktop GUI:** Tauri 2 + Svelte frontend (`gui/`) with Rust backend (`src-tauri/`, binary `firemusic-gui`).
+- **GUI Engine:** New `src/gui/` module (`runtime`, `snapshot`, `cover`) driving MPV on a background thread with IPC snapshots.
+- **`--gui` / `-g`:** CLI flag launches `firemusic-gui` when installed (or from `src-tauri/target/` in dev).
+- **GUI MVP:** Queue, library browse/filter, playlists, now playing bar, cover art, playback controls.
+
+### Changed
+- **`tui/app`:** Exported `AppState`, `Tab`, `Track`, `LibraryEntry` for GUI reuse.
+- **Version:** Bumped to 0.3.0 across `Cargo.toml`, CLI, and Tauri config.
+
 ## [0.2.10] - 2026-06-08
 
 ### Added

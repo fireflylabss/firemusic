@@ -1,6 +1,8 @@
-mod app;
+pub mod app;
 mod event_loop;
 mod ui;
+
+pub use app::{AppState, LibraryEntry, Tab, Track};
 
 use anyhow::Result;
 use crossterm::{
@@ -14,7 +16,6 @@ use std::path::PathBuf;
 
 use crate::core::{create_player, load_inputs, validate_playback_inputs, MpvConfig};
 
-use app::{AppState, Track};
 use ui::render;
 
 fn cleanup_kitty_images(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) {

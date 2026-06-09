@@ -5,8 +5,8 @@
 - **Name**: FireMusic
 - **Stack**: Rust (edition 2024), `libmpv2`, `yt-dlp`, `crossterm`, `ratatui`
 - **Purpose**: High-performance CLI music player for local files and web streams, with discovery, download, and optional TUI
-- **Binaries**: `msc` and `firemusic` (same entry point, both built by `cargo build`)
-- **Version**: 0.2.10
+- **Binaries**: `msc` and `firemusic` (CLI); `firemusic-gui` (Tauri desktop, `src-tauri/`)
+- **Version**: 0.3.0
 - **License**: Apache License 2.0
 
 ## Commands
@@ -25,6 +25,8 @@ cargo test
 cargo run -- <file-or-url>
 cargo run -- -s "query"
 cargo run -- --tui
+cargo run -- --gui
+cd gui && bun run tauri:dev
 cargo run -- --download
 
 # Install binaries globally (msc + firemusic)
@@ -93,6 +95,11 @@ firemusic/
     │       ├── mod.rs
     │       ├── eq.rs
     │       └── crossfade.rs
+    ├── gui/
+    │   ├── mod.rs          # launch_gui, GuiRuntime
+    │   ├── runtime.rs      # MPV worker thread + commands
+    │   ├── snapshot.rs     # Serde DTOs for IPC
+    │   └── cover.rs        # ffmpeg cover extraction
     └── tui/
         ├── mod.rs          # run_tui() entry + terminal setup
         ├── app.rs          # AppState, library, playlists, queue
@@ -119,6 +126,7 @@ firemusic/
 | Discovery | `-s` / `--search` | `handle_search()` |
 | Download | `-d` / `--download` | `handle_download()` |
 | TUI | `-t` / `--tui` | `tui::run_tui()` |
+| GUI | `-g` / `--gui` | `gui::launch_gui()` → `firemusic-gui` |
 | Help topics | `msc help <topic>` | `help_topics::*` |
 
 Modes are mutually exclusive at startup. `cli::run()` routes to exactly one path.

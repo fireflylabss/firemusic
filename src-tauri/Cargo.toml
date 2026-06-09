@@ -1,0 +1,20 @@
+[package]
+name = "firemusic-gui"
+version = "0.3.0"
+edition = "2024"
+description = "Firemusic desktop GUI (Tauri + Svelte)"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+firemusic = { path = ".." }
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4.4", features = ["derive"] }
+anyhow = "1"
+
+[[bin]]
+name = "firemusic-gui"
+path = "src/main.rs"

@@ -29,18 +29,30 @@ src/
 ├── lib.rs               # Public API re-exports
 ├── cli/                 # Argument parsing, mode routing, help topics
 ├── core/                # Shared engine (MPV, discovery, download, audio)
-│   ├── config.rs        # Config paths + music dir resolution
-│   ├── store.rs         # Playlists (M3U) + EQ presets (JSON) persistence
-│   ├── discovery/       # Search providers, yt-dlp, TikTok fallbacks
-│   ├── download/        # Preset downloads + interactive wizard
-│   └── audio/           # EQ bands, crossfade
+├── gui/                 # Desktop GUI engine (Tauri backend uses this)
 └── tui/                 # Full-screen ratatui interface (--tui)
-    ├── app.rs           # AppState, library, queue, playlists
-    ├── event_loop.rs    # Input handling + MPV sync
-    └── ui/              # Panel rendering (sidebar, queue, library, …)
+gui/                     # Svelte frontend (Tauri WebView)
+src-tauri/               # Tauri shell → firemusic-gui binary
 ```
 
 User data lives under `~/.config/firemusic/` (playlists and EQ presets).
+
+### Desktop GUI (Tauri + Svelte)
+
+```bash
+# Dev (hot reload)
+cd gui && bun install && bun run tauri:dev
+
+# Build GUI binary
+cd gui && bun run build
+cd src-tauri && cargo build --release
+cargo install --path src-tauri   # installs firemusic-gui
+
+# Launch
+msc --gui
+firemusic --gui
+firemusic-gui
+```
 
 ---
 
@@ -88,6 +100,8 @@ msc <file-or-url> [FLAGS]
 | `--speed` | <kbd>-f</kbd> | Initial playback speed factor (0.01 - 100.0) | `1.0` |
 | `--volume` | <kbd>-v</kbd> | Initial volume level percentage (0 - 100) | `100.0` |
 | `--download`| <kbd>-d</kbd> | Start the interactive multi-format download wizard | - |
+| `--gui` | <kbd>-g</kbd> | Launch desktop GUI (requires `firemusic-gui`) | - |
+| `--tui` | <kbd>-t</kbd> | Launch terminal UI | - |
 
 ---
 

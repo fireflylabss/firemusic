@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "firemusic",
     author = "FireflyLabs",
-    version = "0.2.10",
+    version = "0.3.0",
     about = "minimalist high-performance CLI music player",
     long_about = "FireMusic is a tactical CLI player for power users.\n\
                   Zero-leak interface, advanced playlist logic, built-in EQ,\n\
@@ -35,6 +35,7 @@ pub struct Args {
         required_unless_present = "download",
         required_unless_present = "search",
         required_unless_present = "tui",
+        required_unless_present = "gui",
         num_args = 0..,
         value_name = "INPUT"
     )]
@@ -95,6 +96,14 @@ pub struct Args {
         help = "Launch terminal user interface"
     )]
     pub tui: bool,
+
+    #[arg(
+        short = 'g',
+        long = "gui",
+        default_value_t = false,
+        help = "Launch desktop GUI (Tauri + Svelte)"
+    )]
+    pub gui: bool,
 
     #[arg(
         short = 'c',

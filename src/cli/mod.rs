@@ -40,6 +40,23 @@ pub fn run() -> Result<()> {
 
     let args = Args::parse();
 
+    if args.gui {
+        let music_dir = resolve_music_dir(&args.music_dir)?;
+        let inputs = if args.inputs.is_empty() {
+            Vec::new()
+        } else {
+            validate_playback_inputs(&args.inputs)?
+        };
+        return crate::gui::launch_gui(
+            music_dir,
+            inputs,
+            args.crossfade,
+            args.loop_mode,
+            args.volume,
+            args.speed,
+        );
+    }
+
     if args.tui {
         let music_dir = resolve_music_dir(&args.music_dir)?;
         let inputs = if args.inputs.is_empty() {
