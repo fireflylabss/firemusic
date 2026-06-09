@@ -1,7 +1,8 @@
 use anyhow::Result;
 use libmpv2::Mpv;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+
+use crate::core::config::presets_dir;
 
 pub const EQ_BANDS: &[(f64, &str)] = &[
     (31.0, "31"),
@@ -106,16 +107,8 @@ impl EqState {
         }
     }
 
-    fn presets_dir() -> PathBuf {
-        dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".config")
-            .join("firemusic")
-            .join("presets")
-    }
-
     pub fn list_presets() -> Vec<String> {
-        let dir = Self::presets_dir();
+        let dir = presets_dir();
         if !dir.exists() {
             return Vec::new();
         }
@@ -134,7 +127,7 @@ impl EqState {
     }
 
     pub fn save_preset(&self, name: &str) -> Result<()> {
-        let dir = Self::presets_dir();
+        let dir = presets_dir();
         std::fs::create_dir_all(&dir)?;
         let preset = self.to_preset(name);
         let path = dir.join(format!("{}.json", name));
@@ -144,7 +137,7 @@ impl EqState {
     }
 
     pub fn load_preset(name: &str) -> Result<EqState> {
-        let path = Self::presets_dir().join(format!("{}.json", name));
+        let path = presets_dir().join(format!("{}.json", name));
         let json = std::fs::read_to_string(&path)?;
         let preset: EqPreset = serde_json::from_str(&json)?;
         Ok(Self::from_preset(&preset))

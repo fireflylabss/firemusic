@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2026-06-08
+
+### Added
+- **Typed Core Errors:** New `core/error.rs` with `thiserror`-based `Error` enum for validation, MPV, and config failures.
+- **Centralized Config:** New `core/config.rs` unifies `config_dir`, `presets_dir`, `playlists_dir`, `default_music_dir`, and `resolve_music_dir()`.
+- **Discovery Submodule:** Split `core/discovery/` into `types`, `ytdl`, `tiktok`, and `session` for search logic vs interactive flow separation.
+- **CLI Submodule:** Split `cli/` into `args.rs` (clap definitions), `play.rs` (direct playback), and `mod.rs` (routing).
+- **TUI Event Loop:** New `tui/event_loop.rs` holds the main loop and key handlers; `tui/mod.rs` is now a thin entry point.
+
+### Changed
+- **TUI App Module:** Renamed `tui/state.rs` to `tui/app.rs` to match FireSuite naming (`app.rs` = state + logic).
+- **Path Resolution:** EQ presets and playlists now resolve paths through `core/config.rs` instead of inline `dirs` calls.
+- **MPV Errors:** `create_player()` and `load_inputs()` now return typed `core::Error` values.
+- **AGENTS.md:** Updated to reflect the current modular layout and coding conventions.
+
 ## [0.2.7] - 2026-06-08
 
 ### Added

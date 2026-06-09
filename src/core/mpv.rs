@@ -1,5 +1,6 @@
-use anyhow::Result;
 use libmpv2::Mpv;
+
+use super::error::{Error, Result};
 
 #[derive(Debug, Clone)]
 pub struct MpvConfig {
@@ -33,7 +34,7 @@ impl MpvConfig {
 }
 
 pub fn create_player(config: &MpvConfig) -> Result<Mpv> {
-    let mpv = Mpv::new().map_err(|e| anyhow::anyhow!("mpv init error: {:?}", e))?;
+    let mpv = Mpv::new().map_err(|e| Error::MpvInit(format!("{:?}", e)))?;
 
     mpv.set_property("video", "no").ok();
     mpv.set_property("volume", config.volume).ok();
@@ -61,7 +62,7 @@ pub fn load_inputs(mpv: &Mpv, inputs: &[String]) -> Result<()> {
     for (i, input) in inputs.iter().enumerate() {
         let mode = if i == 0 { "replace" } else { "append" };
         mpv.command("loadfile", &[input.as_str(), mode])
-            .map_err(|e| anyhow::anyhow!("failed to load {}: {:?}", input, e))?;
+            .map_err(|e| Error::MpvCommand(format!("failed to load {}: {:?}", input, e)))?;
     }
     Ok(())
 }

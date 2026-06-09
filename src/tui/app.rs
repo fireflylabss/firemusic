@@ -1,4 +1,5 @@
 use crate::core::audio::crossfade::CrossfadeConfig;
+use crate::core::config::{default_music_dir, playlists_dir};
 use std::path::PathBuf;
 
 pub const EQ_PRESETS: &[&str] = &[
@@ -94,9 +95,7 @@ const AUDIO_EXTS: &[&str] = &["mp3", "flac", "wav", "ogg", "opus", "m4a", "aac",
 
 impl LibraryState {
     pub fn new() -> Self {
-        let root = crate::core::resolve_music_dir("")
-            .unwrap_or_else(|_| PathBuf::from("."));
-        Self::with_root(root)
+        Self::with_root(default_music_dir())
     }
     pub fn with_root(root: PathBuf) -> Self {
         let mut state = Self {
@@ -292,16 +291,9 @@ impl PlaylistManager {
         pm.refresh();
         pm
     }
-    fn playlists_dir() -> PathBuf {
-        dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join(".config")
-            .join("firemusic")
-            .join("playlists")
-    }
     pub fn refresh(&mut self) {
         self.playlists.clear();
-        let dir = Self::playlists_dir();
+        let dir = playlists_dir();
         if dir.exists() {
             if let Ok(entries) = std::fs::read_dir(&dir) {
                 for entry in entries.flatten() {
@@ -317,7 +309,7 @@ impl PlaylistManager {
     }
     pub fn load_playlist(&mut self, name: &str) {
         self.current_tracks.clear();
-        let path = Self::playlists_dir().join(format!("{}.m3u", name));
+        let path = playlists_dir().join(format!("{}.m3u", name));
         if let Ok(content) = std::fs::read_to_string(&path) {
             for line in content
                 .lines()
@@ -339,7 +331,7 @@ impl PlaylistManager {
     }
     #[allow(dead_code)]
     pub fn save_playlist(&self, name: &str, tracks: &[Track]) -> std::io::Result<()> {
-        let dir = Self::playlists_dir();
+        let dir = playlists_dir();
         std::fs::create_dir_all(&dir)?;
         let path = dir.join(format!("{}.m3u", name));
         std::fs::write(
@@ -351,7 +343,7 @@ impl PlaylistManager {
         )
     }
     pub fn delete_playlist(name: &str) -> std::io::Result<()> {
-        std::fs::remove_file(Self::playlists_dir().join(format!("{}.m3u", name)))
+        std::fs::remove_file(playlists_dir().join(format!("{}.m3u", name)))
     }
     pub fn total_items(&self) -> usize {
         if self.current_tracks.is_empty() {

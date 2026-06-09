@@ -6,7 +6,7 @@
 - **Stack**: Rust (edition 2024), `libmpv2`, `yt-dlp`, `crossterm`, `ratatui`
 - **Purpose**: High-performance CLI music player for local files and web streams, with discovery, download, and optional TUI
 - **Binaries**: `msc` (primary), `firemusic` (alias via `cargo install`)
-- **Version**: 0.2.6
+- **Version**: 0.2.8
 - **License**: Apache License 2.0
 
 ## Commands
@@ -50,33 +50,49 @@ This ensures the code compiles, tests pass, and the latest binary is available s
 
 ## Project Structure
 
-FireMusic does **not** follow the standard FireSuite `core/` + `tui/` split. It is a single-crate app with mode-specific modules:
+FireMusic follows the FireSuite `core/` + `cli/` + `tui/` split with a public library crate:
 
 ```
 firemusic/
-├── Cargo.toml              # Binary name: msc
+├── Cargo.toml              # Binary name: msc, lib: firemusic
+├── AGENTS.md
 ├── README.md
 ├── CHANGELOG.md
-├── ROADMAP.md
-├── GEMINI.md               # AI context (supplementary)
 ├── scripts/
 │   ├── install_linux.sh
 │   ├── install_macos.sh
 │   └── install_windows.ps1
 └── src/
-    ├── main.rs             # CLI entry (clap), mode routing
-    ├── player.rs           # Tactical 3-line playback UI + play_loop
-    ├── discovery.rs        # Search hub (yt, ym, sc, tk)
-    ├── download.rs         # Interactive yt-dlp download wizard
-    ├── tactical_select.rs  # Custom terminal selection menus
-    ├── help_topics.rs      # msc help <topic> pages
-    ├── audio/
-    │   ├── mod.rs
-    │   ├── eq.rs           # 10-band EQ + preset save/load
-    │   └── crossfade.rs    # Crossfade config
+    ├── main.rs             # Thin entry → cli::run()
+    ├── lib.rs              # Public API re-exports
+    ├── cli/
+    │   ├── mod.rs          # Mode routing
+    │   ├── args.rs         # clap Args + HelpTopicCmd
+    │   ├── play.rs         # Direct playback session
+    │   └── help_topics.rs  # msc help <topic> pages
+    ├── core/
+    │   ├── mod.rs          # Stable public API
+    │   ├── error.rs        # Typed errors (thiserror)
+    │   ├── config.rs       # Config paths + music dir resolution
+    │   ├── paths.rs        # URL/file input validation
+    │   ├── mpv.rs          # MpvConfig, create_player, load_inputs
+    │   ├── player.rs       # Tactical 3-line UI + play_loop
+    │   ├── tactical_select.rs
+    │   ├── download.rs
+    │   ├── discovery/
+    │   │   ├── mod.rs
+    │   │   ├── types.rs    # SearchResult, providers, YtdlInfo
+    │   │   ├── ytdl.rs     # yt-dlp search
+    │   │   ├── tiktok.rs   # TikTok search fallbacks
+    │   │   └── session.rs  # Interactive search hub
+    │   └── audio/
+    │       ├── mod.rs
+    │       ├── eq.rs
+    │       └── crossfade.rs
     └── tui/
-        ├── mod.rs          # TUI event loop, mpv integration
-        ├── state.rs        # AppState, library, playlists, queue
+        ├── mod.rs          # run_tui() entry + terminal setup
+        ├── app.rs          # AppState, library, playlists, queue
+        ├── event_loop.rs   # Event loop + key handlers
         └── ui.rs           # ratatui rendering
 ```
 
@@ -90,7 +106,7 @@ firemusic/
 | TUI | `-t` / `--tui` | `tui::run_tui()` |
 | Help topics | `msc help <topic>` | `help_topics::*` |
 
-Modes are mutually exclusive at startup. `main.rs` routes to exactly one path.
+Modes are mutually exclusive at startup. `cli::run()` routes to exactly one path.
 
 ## External Dependencies
 
@@ -120,16 +136,16 @@ sudo apt install libmpv-dev yt-dlp ffmpeg
 |------|------|
 | Playlists | `~/.config/firemusic/playlists/*.m3u` |
 | EQ presets | `~/.config/firemusic/presets/*.json` |
-| Default library | `~/Music` (override with `-m` / `--music-dir`) |
+| Default library | `~/Music` via `core/config.rs` (override with `-m` / `--music-dir`) |
 
-FireMusic does not yet use `/firefly/config/firemusic/` (listed in suite CONTEXT.md as future production path).
+All config paths are resolved through `core/config.rs`. FireMusic does not yet use `/firefly/config/firemusic/` (listed in suite CONTEXT.md as future production path).
 
 ## Code Style Guidelines
 
 ### Imports & Dependencies
 
 - Order: `std` → external crates → `crate::` modules
-- Use `anyhow::Result` throughout (no separate core error type)
+- Core internals: `core::error::Result` with `thiserror`; CLI/TUI boundaries: `anyhow::Result`
 - Terminal: `crossterm` for raw mode, cursor, events
 - TUI: `ratatui` + `CrosstermBackend`
 - Playback: `libmpv2::Mpv` — never spawn `mpv` as subprocess for playback
@@ -144,9 +160,9 @@ FireMusic does not yet use `/firefly/config/firemusic/` (listed in suite CONTEXT
 
 ### Error Handling
 
-- Use `anyhow::Result` with `?` in all public functions
-- Use `anyhow::bail!` for user-facing validation errors
-- MPV init failures: `anyhow::anyhow!("mpv init error: {:?}", e)`
+- `core/error.rs`: typed `Error` enum (`InvalidInput`, `MpvInit`, `MpvCommand`, `ConfigPath`, `Io`)
+- `core/paths.rs` and `core/config.rs` return `core::error::Result`
+- `cli/` and public `handle_*` functions return `anyhow::Result` (auto-converts via `?`)
 - External command failures: log stderr, continue or bail depending on context
 - Never `unwrap()` in production paths; `.ok()` is acceptable for non-critical MPV property sets
 
@@ -162,7 +178,7 @@ FireMusic does not yet use `/firefly/config/firemusic/` (listed in suite CONTEXT
 
 FireMusic has **two distinct UI engines**. Do not mix their rendering logic.
 
-### 1. Tactical CLI UI (`player.rs`)
+### 1. Tactical CLI UI (`core/player.rs`)
 
 The default playback interface. Strict **3-line fixed block**:
 
@@ -202,7 +218,7 @@ Rules:
 - Kitty graphics protocol for cover art; guard with `supports_graphics_protocol()`
 - Theme: `LightRed` accent, `Rgb(110, 40, 0)` selection background
 
-### 3. Tactical Select (`tactical_select.rs`)
+### 3. Tactical Select (`core/tactical_select.rs`)
 
 Shared interactive menu engine for discovery, download, and search flows.
 
@@ -217,23 +233,23 @@ Rules:
 
 ## Module Guidelines
 
-### `player.rs`
+### `core/player.rs`
 
 - `play_loop()` returns `PlayLoopResult`: `Quit`, `SearchAgain`, `EndReached`
 - `render_ui()` is called every ~50ms in the loop
 - EQ cycle via `e`; manual EQ overlay via `E` → `eq_mode_overlay()`
 - Playlist advance on `MEvent::EndFile` when not looping
 
-### `discovery.rs`
+### `core/discovery/`
 
-- Providers: `yt`, `ym`, `sc`, `tk` (prefix syntax: `sc:query`, `tk:query`)
-- YouTube/SoundCloud: `yt-dlp -j` with `--flat-playlist`
-- TikTok: Brave API → Bing → DuckDuckGo HTML fallback
+- `types.rs`: `SearchResult`, `PROVIDERS`, `YtdlInfo`, URL normalization
+- `ytdl.rs`: yt-dlp search for yt/ym/sc providers
+- `tiktok.rs`: Brave API → Bing → DuckDuckGo HTML fallback
+- `session.rs`: interactive search hub (`handle_search`)
+- Prefix syntax: `sc:query`, `tk:query`
 - `SearchResult::get_playable_url()` prefers public URLs over API extractor URLs
-- SoundCloud: normalize to `soundcloud.com/...` via `normalize_soundcloud_url()`
-- TikTok IDs: fallback URL `https://www.tiktok.com/@_/video/<id>`
 
-### `download.rs`
+### `core/download.rs`
 
 - Modes: `interactive` (default), `audio`, `video`
 - Interactive wizard: stream type → formats → metadata extras → subtitle check → execute
@@ -241,17 +257,17 @@ Rules:
 - Subtitle embedding only when container supports it (m4a, mp4, mkv)
 - Probe subtitles only when user selects "check subtitles"
 
-### `audio/eq.rs`
+### `core/audio/eq.rs`
 
 - 10 bands: 31 Hz – 16 kHz
-- Presets saved as JSON in `~/.config/firemusic/presets/`
+- Presets saved as JSON via `core/config.rs::presets_dir()`
 - `apply()` builds MPV `af` filter chain from non-zero gains
 - Gain range: -12 dB to +12 dB
 
-### `tui/state.rs`
+### `tui/app.rs`
 
 - `LibraryState`: scans `AUDIO_EXTS` recursively by folder
-- `PlaylistManager`: M3U read/write in config dir
+- `PlaylistManager`: M3U read/write via `core/config.rs::playlists_dir()`
 - `EQ_PRESETS` / `EQ_PRESET_NAMES`: quick-cycle presets in TUI (separate from manual EQ)
 
 ## Key Bindings
@@ -298,11 +314,11 @@ cargo test
 cargo test -- discovery::
 ```
 
-Current test coverage is in `discovery.rs`:
+Current test coverage:
 
-- SoundCloud URL normalization
-- TikTok URL extraction and deduplication
-- TikTok ID fallback URL format
+- `core/discovery/types.rs`: SoundCloud URL normalization, TikTok ID fallback
+- `core/discovery/tiktok.rs`: TikTok URL extraction and deduplication
+- `core/paths.rs`: URL scheme validation
 
 When adding search or URL logic, add unit tests in the same module under `#[cfg(test)]`.
 
@@ -312,7 +328,7 @@ CLI and TUI flows are not covered by automated tests (require TTY + MPV).
 
 - Follow the zero-leak 3-line UI contract in tactical playback mode
 - Keep tactical_select and TUI terminal cleanup symmetric (raw mode off, cursor shown)
-- Use `dirs` crate for home/config paths
+- Use `core/config.rs` for all config paths (not inline `dirs` calls)
 - Run `cargo test` before committing
 - Run `cargo install --path .` after completing tasks
 - Update `CHANGELOG.md` for user-facing changes
@@ -326,7 +342,7 @@ CLI and TUI flows are not covered by automated tests (require TTY + MPV).
 - Add `println!` inside the tactical playback render loop
 - Block the TUI main loop on `ffmpeg` or `yt-dlp`
 - Use cyan as primary accent (legacy; replaced by red/orange in v0.2.5+)
-- Hardcode home paths (use `dirs::home_dir()`)
+- Hardcode home paths (use `core/config.rs`)
 - Use `unwrap()` on user input or external command results
 - Test TUI or tactical_select in non-TTY CI without guards
 - Break `msc help <topic>` pages or the slim main `--help` output
@@ -334,7 +350,7 @@ CLI and TUI flows are not covered by automated tests (require TTY + MPV).
 
 ## Versioning & Changelog
 
-- Version lives in `Cargo.toml` and `main.rs` clap `version` field — keep both in sync
+- Version lives in `Cargo.toml` and `cli/args.rs` clap `version` field — keep both in sync
 - Document changes in `CHANGELOG.md` following Keep a Changelog format
 - ROADMAP.md may lag behind implementation; verify against code before citing it
 
@@ -351,5 +367,5 @@ CLI and TUI flows are not covered by automated tests (require TTY + MPV).
 - `README.md` — user-facing usage and examples
 - `GEMINI.md` — condensed AI context
 - `CHANGELOG.md` — release history
-- `../CONTEXT.md` — FireSuite-wide patterns (firemusic is a partial match)
+- `../CONTEXT.md` — FireSuite-wide patterns (firemusic now follows core/cli/tui split)
 - `../DESIGN.md` — visual identity (TUI follows Fire Red accent where applicable)

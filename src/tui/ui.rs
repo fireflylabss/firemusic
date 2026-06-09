@@ -1,4 +1,4 @@
-use crate::tui::state::{AppState, Focus, LibraryEntry, Tab};
+use crate::tui::app::{AppState, Focus, LibraryEntry, Tab};
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
