@@ -1,7 +1,11 @@
 [package]
 name = "firemusic"
-version = "0.2.6"
+version = "0.2.7"
 edition = "2024"
+
+[lib]
+name = "firemusic"
+path = "src/lib.rs"
 
 [dependencies]
 libmpv2 = "5.0.3"

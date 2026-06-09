@@ -7,9 +7,11 @@ use std::io;
 use std::process::Command;
 use std::time::Duration;
 
-use crate::download::handle_download;
-use crate::player::{PlayLoopResult, play_loop};
-use crate::tactical_select::tactical_select;
+use super::download::handle_download;
+use super::mpv::{create_player, load_inputs, MpvConfig};
+use super::paths::validate_url;
+use super::player::{PlayLoopResult, play_loop};
+use super::tactical_select::tactical_select;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct SearchResult {
@@ -413,19 +415,13 @@ pub fn handle_search(mut query: String, loop_mode: bool, volume: f64, speed: f64
                         }
                     }
 
+                    validate_url(&current_url)?;
+
                     loop {
-                        let mut mpv = libmpv2::Mpv::new()
-                            .map_err(|e| anyhow::anyhow!("mpv init: {:?}", e))?;
-                        mpv.set_property("video", "no").ok();
-                        mpv.set_property("volume", volume).ok();
-                        mpv.set_property("speed", speed).ok();
-                        mpv.set_property("ytdl", "yes").ok();
-                        mpv.set_property("ytdl-format", current_quality.as_str())
-                            .ok();
-                        if loop_mode {
-                            mpv.set_property("loop-file", "inf").ok();
-                        }
-                        mpv.command("loadfile", &[&current_url, "replace"]).ok();
+                        let config =
+                            MpvConfig::for_stream(volume, speed, loop_mode, &current_quality);
+                        let mut mpv = create_player(&config)?;
+                        load_inputs(&mpv, &[current_url.clone()])?;
 
                         crossterm::terminal::enable_raw_mode().ok();
                         println!("\n\n\n");

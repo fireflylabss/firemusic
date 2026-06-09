@@ -1,4 +1,4 @@
-use crate::audio::eq::EqState;
+use super::audio::eq::EqState;
 use anyhow::Result;
 use crossterm::{
     cursor,

@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2026-06-08
+
+### Added
+- **Modular Architecture:** Refactored the crate into three layers aligned with the FireSuite standard: `core` (engine), `cli` (default mode), and `tui` (terminal interface).
+- **Public Library Crate:** Added `src/lib.rs` exposing a stable API (`firemusic::core`, `firemusic::cli`, `firemusic::tui`) for reuse by future GUIs or suite integrations.
+- **Core Path Validation:** New `core/paths.rs` module validates playback inputs, music directories, and remote URLs before they reach MPV or `yt-dlp`.
+- **Centralized MPV Setup:** New `core/mpv.rs` module with `MpvConfig`, `create_player()`, and `load_inputs()` to unify player initialization across CLI, discovery, and TUI.
+- **Security Tests:** Added unit tests for URL scheme validation (`http`/`https` only) and rejection of unsupported schemes.
+
+### Changed
+- **Thin Entry Point:** `main.rs` now delegates entirely to `cli::run()`; all argument parsing and mode routing live in `src/cli/mod.rs`.
+- **Core Module Layout:** Moved `discovery`, `download`, `player`, `tactical_select`, and `audio/` into `src/core/` as the shared engine layer.
+- **CLI Layer:** Default playback, search (`-s`), download (`--download`), and `msc help <topic>` are handled by the `cli` module, which validates inputs via `core` before execution.
+- **TUI Layer:** `tui::run_tui()` now receives a resolved `PathBuf` for the music library and delegates MPV creation, input loading, and directory changes to `core`.
+- **Download Safety:** All download URLs are validated through `core::paths::validate_url()` before spawning `yt-dlp`, including interactive wizard input.
+- **Discovery Playback:** Stream playback in the search hub now uses `MpvConfig::for_stream()` and `create_player()` instead of inline MPV property setup.
+- **Music Directory Resolution:** `-m` / `--music-dir` and TUI library changes (`c`) now go through `resolve_music_dir()`, rejecting `..` components and non-existent paths.
+
+### Fixed
+- **Local Path Traversal:** Playback inputs and music directory paths containing `..` are now rejected at the CLI/TUI boundary.
+- **Invalid Local Files:** Direct-play mode now requires local files to exist and be canonicalized before loading into MPV.
+
 ## [0.2.6] - 2026-06-07
 
 ### Added

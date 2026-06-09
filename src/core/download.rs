@@ -6,8 +6,9 @@ use serde_json;
 use std::io::{self, Write};
 use std::process::Command;
 
-use crate::discovery::YtdlInfo;
-use crate::tactical_select::tactical_select;
+use super::discovery::YtdlInfo;
+use super::paths::validate_url;
+use super::tactical_select::tactical_select;
 
 #[derive(Debug, Clone, ValueEnum, PartialEq)]
 pub enum DownloadPreset {
@@ -23,26 +24,34 @@ pub struct DownloadConfig {
 }
 
 pub fn handle_download(mode: &str, urls: Vec<String>) -> Result<()> {
+    let validated_urls: Vec<String> = urls
+        .into_iter()
+        .map(|url| {
+            validate_url(&url)?;
+            Ok(url.trim().to_string())
+        })
+        .collect::<Result<_>>()?;
+
     match mode {
         "audio" => {
-            if urls.is_empty() {
+            if validated_urls.is_empty() {
                 anyhow::bail!("url required for --download=audio");
             }
-            for url in urls {
+            for url in validated_urls {
                 run_ytdl_preset(&url, true)?;
             }
             Ok(())
         }
         "video" => {
-            if urls.is_empty() {
+            if validated_urls.is_empty() {
                 anyhow::bail!("url required for --download=video");
             }
-            for url in urls {
+            for url in validated_urls {
                 run_ytdl_preset(&url, false)?;
             }
             Ok(())
         }
-        _ => run_interactive_download(urls),
+        _ => run_interactive_download(validated_urls),
     }
 }
 
@@ -72,7 +81,8 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
         let url: String = Input::new()
             .with_prompt("link to download")
             .interact_text()?;
-        urls.push(url);
+        validate_url(&url)?;
+        urls.push(url.trim().to_string());
     }
 
     // 1. Selection Phase: Type of download

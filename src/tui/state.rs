@@ -1,4 +1,4 @@
-use crate::audio::crossfade::CrossfadeConfig;
+use crate::core::audio::crossfade::CrossfadeConfig;
 use std::path::PathBuf;
 
 pub const EQ_PRESETS: &[&str] = &[
@@ -94,9 +94,8 @@ const AUDIO_EXTS: &[&str] = &["mp3", "flac", "wav", "ogg", "opus", "m4a", "aac",
 
 impl LibraryState {
     pub fn new() -> Self {
-        let root = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("Music");
+        let root = crate::core::resolve_music_dir("")
+            .unwrap_or_else(|_| PathBuf::from("."));
         Self::with_root(root)
     }
     pub fn with_root(root: PathBuf) -> Self {
@@ -424,7 +423,7 @@ impl PlaybackState {
 }
 
 impl AppState {
-    pub fn new(crossfade_duration: f64, is_loop: bool, music_dir: &str) -> Self {
+    pub fn new(crossfade_duration: f64, is_loop: bool, music_dir: PathBuf) -> Self {
         let crossfade = if crossfade_duration > 0.0 {
             CrossfadeConfig::new(crossfade_duration)
         } else {
@@ -432,11 +431,7 @@ impl AppState {
         };
         let mut pb = PlaybackState::new();
         pb.is_loop = is_loop;
-        let library = if music_dir.is_empty() {
-            LibraryState::new()
-        } else {
-            LibraryState::with_root(PathBuf::from(music_dir))
-        };
+        let library = LibraryState::with_root(music_dir);
         Self {
             queue: Vec::new(),
             current_track_idx: 0,

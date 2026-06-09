@@ -11,8 +11,13 @@ use libmpv2::{Mpv, events::Event as MEvent};
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;
 use std::io::Write;
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
+
+use crate::core::{
+    create_player, load_inputs, resolve_music_dir, validate_playback_inputs, MpvConfig,
+};
 
 use state::{
     AppState, EQ_PRESET_NAMES, EQ_PRESETS, Focus, InputAction, LibraryEntry, PlaylistManager, Tab,
@@ -48,7 +53,7 @@ pub fn run_tui(
     is_loop: bool,
     volume: f64,
     speed: f64,
-    music_dir: &str,
+    music_dir: PathBuf,
 ) -> Result<()> {
     // Set up panic handler to ensure terminal cleanup on crashes
     let original_hook = std::panic::take_hook();
@@ -71,42 +76,31 @@ pub fn run_tui(
     // Delete any lingering kitty images
     cleanup_kitty_images(&mut terminal);
 
-    let mut mpv = Mpv::new().map_err(|e| anyhow::anyhow!("mpv init error: {:?}", e))?;
+    let config = MpvConfig::for_cli(volume, speed, is_loop, crossfade_duration);
+    let mut mpv = create_player(&config)?;
     let mut app_state = AppState::new(crossfade_duration, is_loop, music_dir);
 
-    if mpv.set_property("video", "no").is_err() {
-        app_state.set_message("warning: failed to disable video".to_string());
-    }
-    if mpv.set_property("volume", volume).is_err() {
-        app_state.set_message("warning: failed to set volume".to_string());
-    }
-    if mpv.set_property("speed", speed).is_err() {
-        app_state.set_message("warning: failed to set speed".to_string());
-    }
-    if mpv.set_property("ytdl", "yes").is_err() {
-        app_state.set_message("warning: failed to enable ytdl".to_string());
-    }
-    if mpv.set_property("ytdl-format", "bestaudio/best").is_err() {
-        app_state.set_message("warning: failed to set ytdl format".to_string());
-    }
-    if crossfade_duration > 0.0 && mpv.set_property("audio-fade", crossfade_duration).is_err() {
-        app_state.set_message("warning: failed to set crossfade".to_string());
-    }
-    if is_loop && mpv.set_property("loop-file", "inf").is_err() {
-        app_state.set_message("warning: failed to enable loop".to_string());
-    }
-
-    for (i, input) in inputs.iter().enumerate() {
-        let mode = if i == 0 { "replace" } else { "append" };
-        if mpv.command("loadfile", &[input, mode]).is_err() {
-            app_state.set_message(format!("warning: failed to load {}", input));
+    let validated_inputs = if inputs.is_empty() {
+        Vec::new()
+    } else {
+        match validate_playback_inputs(&inputs) {
+            Ok(validated) => {
+                if let Err(err) = load_inputs(&mpv, &validated) {
+                    app_state.set_message(format!("warning: {}", err));
+                }
+                validated
+            }
+            Err(err) => {
+                app_state.set_message(format!("warning: {}", err));
+                Vec::new()
+            }
         }
-    }
+    };
 
     app_state.playback.volume = volume;
     app_state.playback.speed = speed;
 
-    for input in &inputs {
+    for input in &validated_inputs {
         let title = if input.starts_with("http") {
             input.clone()
         } else {
@@ -622,12 +616,12 @@ fn apply_input(action: InputAction, value: String, mpv: &Mpv, state: &mut AppSta
                 state.set_message("cancelled".to_string());
                 return;
             }
-            let p = std::path::PathBuf::from(&value);
-            if p.exists() && p.is_dir() {
-                state.library.change_root(p);
-                state.set_message(format!("library: {}", value));
-            } else {
-                state.set_message("error: path does not exist".to_string());
+            match resolve_music_dir(&value) {
+                Ok(p) => {
+                    state.library.change_root(p.clone());
+                    state.set_message(format!("library: {}", p.display()));
+                }
+                Err(err) => state.set_message(format!("error: {}", err)),
             }
         }
         InputAction::NewPlaylist => {
