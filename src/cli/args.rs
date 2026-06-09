@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "firemusic",
     author = "FireflyLabs",
-    version = "0.2.8",
+    version = "0.2.9",
     about = "minimalist high-performance CLI music player",
     long_about = "FireMusic is a tactical CLI player for power users.\n\
                   Zero-leak interface, advanced playlist logic, built-in EQ,\n\

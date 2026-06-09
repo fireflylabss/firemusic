@@ -19,6 +19,31 @@
 
 ---
 
+## 📁 Project Structure
+
+FireMusic follows the FireSuite `core` / `cli` / `tui` layout:
+
+```
+src/
+├── main.rs              # Thin entry → cli::run()
+├── lib.rs               # Public API re-exports
+├── cli/                 # Argument parsing, mode routing, help topics
+├── core/                # Shared engine (MPV, discovery, download, audio)
+│   ├── config.rs        # Config paths + music dir resolution
+│   ├── store.rs         # Playlists (M3U) + EQ presets (JSON) persistence
+│   ├── discovery/       # Search providers, yt-dlp, TikTok fallbacks
+│   ├── download/        # Preset downloads + interactive wizard
+│   └── audio/           # EQ bands, crossfade
+└── tui/                 # Full-screen ratatui interface (--tui)
+    ├── app.rs           # AppState, library, queue, playlists
+    ├── event_loop.rs    # Input handling + MPV sync
+    └── ui/              # Panel rendering (sidebar, queue, library, …)
+```
+
+User data lives under `~/.config/firemusic/` (playlists and EQ presets).
+
+---
+
 ## 🛠 Prerequisites
 
 Before installing, ensure you have the `libmpv` development files (version 2.0 or compatible) and `yt-dlp` installed on your system.

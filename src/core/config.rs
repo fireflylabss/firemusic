@@ -57,3 +57,34 @@ pub fn resolve_music_dir(dir: &str) -> Result<PathBuf> {
         dir
     )))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_dir_ends_with_firemusic() {
+        let dir = config_dir();
+        assert!(dir.ends_with("firemusic"));
+        assert!(dir.ends_with(".config/firemusic") || dir.ends_with(".config\\firemusic"));
+    }
+
+    #[test]
+    fn presets_and_playlists_dirs_are_under_config() {
+        let base = config_dir();
+        assert_eq!(presets_dir(), base.join("presets"));
+        assert_eq!(playlists_dir(), base.join("playlists"));
+    }
+
+    #[test]
+    fn resolve_music_dir_rejects_parent_components() {
+        assert!(resolve_music_dir("../Music").is_err());
+        assert!(resolve_music_dir("/tmp/../etc").is_err());
+    }
+
+    #[test]
+    fn resolve_music_dir_empty_returns_default() {
+        let resolved = resolve_music_dir("").unwrap();
+        assert_eq!(resolved, default_music_dir());
+    }
+}

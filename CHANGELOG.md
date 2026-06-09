@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.9] - 2026-06-08
+
+### Added
+- **Persistence Store:** New `core/store.rs` centralizes playlist (M3U) and EQ preset (JSON) list/load/save/delete operations.
+- **Download Submodule:** Split `core/download/` into `mod.rs`, `ytdl.rs` (presets + format filters), and `session.rs` (interactive wizard).
+- **TUI UI Submodule:** Split `tui/ui/` into panel modules (`sidebar`, `queue`, `library`, `playlists`, `stats`, `now_playing`, `popups`, `theme`, etc.).
+- **Unit Tests:** Added coverage for `core/config.rs`, `core/store.rs`, `core/discovery/ytdl.rs` query/pagination helpers, and `core/download/ytdl.rs` video format filters.
+
+### Changed
+- **EQ Presets:** `EqState` list/save/load now delegates to `core/store.rs` instead of direct filesystem access.
+- **Playlist Manager:** TUI playlist operations now route through `core/store.rs`.
+- **`.gitignore`:** Expanded to cover Rust artifacts, IDEs, OS junk, env files, agent tooling, logs, and local config data.
+- **README.md:** Added project structure section aligned with the modular `core` / `cli` / `tui` layout.
+- **AGENTS.md:** Updated structure docs for `store.rs`, download submodule, and TUI UI panels.
+
+### Removed
+- **Dead Code:** Removed unused `LibraryState::new()` (TUI always uses `with_root()`).
+
 ## [0.2.8] - 2026-06-08
 
 ### Added

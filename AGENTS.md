@@ -6,7 +6,7 @@
 - **Stack**: Rust (edition 2024), `libmpv2`, `yt-dlp`, `crossterm`, `ratatui`
 - **Purpose**: High-performance CLI music player for local files and web streams, with discovery, download, and optional TUI
 - **Binaries**: `msc` (primary), `firemusic` (alias via `cargo install`)
-- **Version**: 0.2.8
+- **Version**: 0.2.9
 - **License**: Apache License 2.0
 
 ## Commands
@@ -77,8 +77,12 @@ firemusic/
     │   ├── paths.rs        # URL/file input validation
     │   ├── mpv.rs          # MpvConfig, create_player, load_inputs
     │   ├── player.rs       # Tactical 3-line UI + play_loop
+    │   ├── store.rs        # Playlists + EQ preset persistence
     │   ├── tactical_select.rs
-    │   ├── download.rs
+    │   ├── download/
+    │   │   ├── mod.rs      # handle_download routing
+    │   │   ├── ytdl.rs     # Preset downloads + format filters
+    │   │   └── session.rs  # Interactive download wizard
     │   ├── discovery/
     │   │   ├── mod.rs
     │   │   ├── types.rs    # SearchResult, providers, YtdlInfo
@@ -93,7 +97,18 @@ firemusic/
         ├── mod.rs          # run_tui() entry + terminal setup
         ├── app.rs          # AppState, library, playlists, queue
         ├── event_loop.rs   # Event loop + key handlers
-        └── ui.rs           # ratatui rendering
+        └── ui/             # ratatui panel rendering
+            ├── mod.rs      # render() orchestration
+            ├── theme.rs    # Colors, keybinds, helpers
+            ├── sidebar.rs
+            ├── queue.rs
+            ├── library.rs
+            ├── playlists.rs
+            ├── stats.rs
+            ├── now_playing.rs
+            ├── statusbar.rs
+            ├── titlebar.rs
+            └── popups.rs   # Help, input, kitty cover
 ```
 
 ## Operating Modes
@@ -249,26 +264,38 @@ Rules:
 - Prefix syntax: `sc:query`, `tk:query`
 - `SearchResult::get_playable_url()` prefers public URLs over API extractor URLs
 
-### `core/download.rs`
+### `core/store.rs`
 
-- Modes: `interactive` (default), `audio`, `video`
-- Interactive wizard: stream type → formats → metadata extras → subtitle check → execute
+- Central persistence API for playlists (`.m3u`) and EQ presets (`.json`)
+- Functions: `list_*`, `load_*`, `save_*`, `delete_*`
+- Paths resolved via `core/config.rs`; never call `dirs` directly from TUI/app code
+
+### `core/download/`
+
+- `mod.rs`: `handle_download()` routes `audio`, `video`, or interactive wizard
+- `ytdl.rs`: preset downloads (`run_ytdl_preset`), `video_format_filter()` for resolution strings
+- `session.rs`: interactive wizard (stream type → formats → metadata → subtitles → execute)
 - Output template: `%(title).200B [%(id)s].%(ext)s`
 - Subtitle embedding only when container supports it (m4a, mp4, mkv)
-- Probe subtitles only when user selects "check subtitles"
 
 ### `core/audio/eq.rs`
 
 - 10 bands: 31 Hz – 16 kHz
-- Presets saved as JSON via `core/config.rs::presets_dir()`
+- Presets saved/loaded via `core/store.rs`
 - `apply()` builds MPV `af` filter chain from non-zero gains
 - Gain range: -12 dB to +12 dB
 
 ### `tui/app.rs`
 
-- `LibraryState`: scans `AUDIO_EXTS` recursively by folder
-- `PlaylistManager`: M3U read/write via `core/config.rs::playlists_dir()`
+- `LibraryState`: scans `AUDIO_EXTS` by folder; use `with_root()` only
+- `PlaylistManager`: delegates to `core/store.rs`
 - `EQ_PRESETS` / `EQ_PRESET_NAMES`: quick-cycle presets in TUI (separate from manual EQ)
+
+### `tui/ui/`
+
+- `mod.rs::render()` orchestrates all panels; one file per panel
+- `theme.rs`: shared colors (`ACCENT`, `DIM_ACCENT`), `stat_line`, `keybinds`, kitty helpers
+- Do not mix tactical CLI rendering (`core/player.rs`) with TUI panel code
 
 ## Key Bindings
 
@@ -316,8 +343,12 @@ cargo test -- discovery::
 
 Current test coverage:
 
+- `core/config.rs`: config dir layout, music dir validation
+- `core/store.rs`: stem name listing, playlist/EQ JSON roundtrips
 - `core/discovery/types.rs`: SoundCloud URL normalization, TikTok ID fallback
+- `core/discovery/ytdl.rs`: search query building, pagination range, line parsing
 - `core/discovery/tiktok.rs`: TikTok URL extraction and deduplication
+- `core/download/ytdl.rs`: video format filter strings
 - `core/paths.rs`: URL scheme validation
 
 When adding search or URL logic, add unit tests in the same module under `#[cfg(test)]`.

@@ -1,8 +1,85 @@
-/target
-/localg
+# Rust / Cargo
+/target/
+**/target/
+Cargo.lock
+*.rs.bk
+*.pdb
+
+# Build artifacts
+/dist/
+/out/
+/build/
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+*.rlib
+*.d
+
+# IDE / editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# Local / agent tooling
+/localg/
 /.qoder/
 /.omg/
 /.ignore/
-/.qoder/
-/.omg/
-/.ignore/
+/.cursor/
+/.grok/
+/.agents/
+*.local.json
+
+# Logs / temp
+*.log
+/logs/
+/tmp/
+*.tmp
+*.temp
+.cache/
+
+# Test / coverage
+/coverage/
+*.profraw
+*.profdata
+tarpaulin-report.html
+lcov.info
+
+# Install / packaging
+*.deb
+*.rpm
+*.AppImage
+*.dmg
+*.msi
+
+# FireMusic local config (user data — never commit)
+playlists/
+presets/

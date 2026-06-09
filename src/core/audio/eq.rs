@@ -2,7 +2,7 @@ use anyhow::Result;
 use libmpv2::Mpv;
 use serde::{Deserialize, Serialize};
 
-use crate::core::config::presets_dir;
+use crate::core::store;
 
 pub const EQ_BANDS: &[(f64, &str)] = &[
     (31.0, "31"),
@@ -108,38 +108,15 @@ impl EqState {
     }
 
     pub fn list_presets() -> Vec<String> {
-        let dir = presets_dir();
-        if !dir.exists() {
-            return Vec::new();
-        }
-        let mut names = Vec::new();
-        if let Ok(entries) = std::fs::read_dir(&dir) {
-            for entry in entries.flatten() {
-                if let Some(name) = entry.file_name().to_str() {
-                    if name.ends_with(".json") {
-                        names.push(name.trim_end_matches(".json").to_string());
-                    }
-                }
-            }
-        }
-        names.sort();
-        names
+        store::list_eq_presets()
     }
 
     pub fn save_preset(&self, name: &str) -> Result<()> {
-        let dir = presets_dir();
-        std::fs::create_dir_all(&dir)?;
-        let preset = self.to_preset(name);
-        let path = dir.join(format!("{}.json", name));
-        let json = serde_json::to_string_pretty(&preset)?;
-        std::fs::write(&path, json)?;
-        Ok(())
+        store::save_eq_preset(&self.to_preset(name))
     }
 
     pub fn load_preset(name: &str) -> Result<EqState> {
-        let path = presets_dir().join(format!("{}.json", name));
-        let json = std::fs::read_to_string(&path)?;
-        let preset: EqPreset = serde_json::from_str(&json)?;
+        let preset = store::load_eq_preset(name)?;
         Ok(Self::from_preset(&preset))
     }
 

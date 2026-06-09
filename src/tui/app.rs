@@ -1,5 +1,5 @@
 use crate::core::audio::crossfade::CrossfadeConfig;
-use crate::core::config::{default_music_dir, playlists_dir};
+use crate::core::store;
 use std::path::PathBuf;
 
 pub const EQ_PRESETS: &[&str] = &[
@@ -94,9 +94,6 @@ pub struct LibraryState {
 const AUDIO_EXTS: &[&str] = &["mp3", "flac", "wav", "ogg", "opus", "m4a", "aac", "wma"];
 
 impl LibraryState {
-    pub fn new() -> Self {
-        Self::with_root(default_music_dir())
-    }
     pub fn with_root(root: PathBuf) -> Self {
         let mut state = Self {
             root_dir: root.clone(),
@@ -292,36 +289,19 @@ impl PlaylistManager {
         pm
     }
     pub fn refresh(&mut self) {
-        self.playlists.clear();
-        let dir = playlists_dir();
-        if dir.exists() {
-            if let Ok(entries) = std::fs::read_dir(&dir) {
-                for entry in entries.flatten() {
-                    if let Some(n) = entry.file_name().to_str() {
-                        if n.ends_with(".m3u") {
-                            self.playlists.push(n.trim_end_matches(".m3u").to_string());
-                        }
-                    }
-                }
-            }
-        }
-        self.playlists.sort();
+        self.playlists = store::list_playlists();
     }
     pub fn load_playlist(&mut self, name: &str) {
         self.current_tracks.clear();
-        let path = playlists_dir().join(format!("{}.m3u", name));
-        if let Ok(content) = std::fs::read_to_string(&path) {
-            for line in content
-                .lines()
-                .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
-            {
-                let title = std::path::Path::new(line)
+        if let Ok(paths) = store::load_playlist_paths(name) {
+            for line in paths {
+                let title = std::path::Path::new(&line)
                     .file_stem()
                     .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or_else(|| line.to_string());
+                    .unwrap_or_else(|| line.clone());
                 self.current_tracks.push(Track {
                     title,
-                    path: line.to_string(),
+                    path: line,
                     duration: 0.0,
                     artist: None,
                     album: None,
@@ -329,21 +309,12 @@ impl PlaylistManager {
             }
         }
     }
-    #[allow(dead_code)]
-    pub fn save_playlist(&self, name: &str, tracks: &[Track]) -> std::io::Result<()> {
-        let dir = playlists_dir();
-        std::fs::create_dir_all(&dir)?;
-        let path = dir.join(format!("{}.m3u", name));
-        std::fs::write(
-            &path,
-            tracks
-                .iter()
-                .map(|t| format!("{}\n", t.path))
-                .collect::<String>(),
-        )
+    pub fn save_playlist(&self, name: &str, tracks: &[Track]) -> bool {
+        let paths: Vec<&str> = tracks.iter().map(|t| t.path.as_str()).collect();
+        store::save_playlist_paths(name, &paths).is_ok()
     }
-    pub fn delete_playlist(name: &str) -> std::io::Result<()> {
-        std::fs::remove_file(playlists_dir().join(format!("{}.m3u", name)))
+    pub fn delete_playlist(name: &str) -> bool {
+        store::delete_playlist(name).is_ok()
     }
     pub fn total_items(&self) -> usize {
         if self.current_tracks.is_empty() {

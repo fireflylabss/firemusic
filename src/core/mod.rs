@@ -6,6 +6,7 @@ pub mod error;
 pub mod mpv;
 pub mod paths;
 pub mod player;
+pub mod store;
 pub mod tactical_select;
 
 pub use config::{config_dir, default_music_dir, playlists_dir, presets_dir, resolve_music_dir};

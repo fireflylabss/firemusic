@@ -1,80 +1,15 @@
 use anyhow::Result;
-use clap::ValueEnum;
 use crossterm::style::Stylize;
 use dialoguer::Input;
-use serde_json;
 use std::io::{self, Write};
 use std::process::Command;
 
-use super::discovery::YtdlInfo;
-use super::paths::validate_url;
-use super::tactical_select::tactical_select;
+use super::ytdl::{run_configured_download, DownloadConfig};
+use crate::core::discovery::YtdlInfo;
+use crate::core::paths::validate_url;
+use crate::core::tactical_select::tactical_select;
 
-#[derive(Debug, Clone, ValueEnum, PartialEq)]
-pub enum DownloadPreset {
-    Audio,
-    Video,
-}
-
-pub struct DownloadConfig {
-    format: String,
-    title: String,
-    is_audio: bool,
-    quality: Option<String>,
-}
-
-pub fn handle_download(mode: &str, urls: Vec<String>) -> Result<()> {
-    let validated_urls: Vec<String> = urls
-        .into_iter()
-        .map(|url| {
-            validate_url(&url)?;
-            Ok(url.trim().to_string())
-        })
-        .collect::<Result<_>>()?;
-
-    match mode {
-        "audio" => {
-            if validated_urls.is_empty() {
-                anyhow::bail!("url required for --download=audio");
-            }
-            for url in validated_urls {
-                run_ytdl_preset(&url, true)?;
-            }
-            Ok(())
-        }
-        "video" => {
-            if validated_urls.is_empty() {
-                anyhow::bail!("url required for --download=video");
-            }
-            for url in validated_urls {
-                run_ytdl_preset(&url, false)?;
-            }
-            Ok(())
-        }
-        _ => run_interactive_download(validated_urls),
-    }
-}
-
-fn run_ytdl_preset(url: &str, is_audio: bool) -> Result<()> {
-    let mut cmd = Command::new("yt-dlp");
-    if is_audio {
-        println!("\u{1F525} downloading audio (mp3/best)...");
-        cmd.args(["-x", "--audio-format", "mp3", "--audio-quality", "0", url]);
-    } else {
-        println!("\u{1F525} downloading video (mp4/best)...");
-        cmd.args(["-f", "bv+ba/b", "--merge-output-format", "mp4", url]);
-    }
-
-    let status = cmd.spawn()?.wait()?;
-    if status.success() {
-        println!("\u{2705} download complete.");
-    } else {
-        println!("\u{274C} download failed.");
-    }
-    Ok(())
-}
-
-fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
+pub fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
     println!("{}", "\u{1F525} fire music download wizard".bold().yellow());
 
     if urls.is_empty() {
@@ -85,7 +20,6 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
         urls.push(url.trim().to_string());
     }
 
-    // 1. Selection Phase: Type of download
     let type_options = vec![
         "audio only".to_string(),
         "video only".to_string(),
@@ -104,7 +38,6 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
     let mut video_formats = Vec::new();
     let mut video_quality = "best".to_string();
 
-    // 2. Format Selection
     if type_idx == 0 || type_idx == 2 {
         let formats = vec![
             "mp3".to_string(),
@@ -150,7 +83,6 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
         }
     }
 
-    // 3. Metadata & Extras
     let meta_options = vec![
         "embed metadata".to_string(),
         "embed thumbnail".to_string(),
@@ -240,7 +172,6 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
         }
     }
 
-    // 4. Execution Phase
     for url in urls {
         println!("\n\u{1F680} processing: {}", url.clone().cyan());
         let output = Command::new("yt-dlp").args(["-j", &url]).output()?;
@@ -279,43 +210,7 @@ fn run_interactive_download(mut urls: Vec<String>) -> Result<()> {
         }
 
         for config in configs {
-            println!(
-                "   \u{1F4E5} downloading [{}]: {}",
-                config.format.clone().cyan(),
-                config.title.clone().white().bold()
-            );
-            let mut cmd = Command::new("yt-dlp");
-            cmd.args(&common_args);
-            if config.is_audio {
-                cmd.args([
-                    "-x",
-                    "--audio-format",
-                    &config.format,
-                    "--audio-quality",
-                    "0",
-                ]);
-            } else {
-                let res_filter = if config.quality.as_deref() == Some("best") {
-                    "bv+ba/b".to_string()
-                } else {
-                    format!(
-                        "bv[height<={pos}]+ba/b[height<={pos}]",
-                        pos = config
-                            .quality
-                            .unwrap_or_else(|| "1080".to_string())
-                            .split('x')
-                            .last()
-                            .unwrap_or("1080")
-                    )
-                };
-                cmd.args(["-f", &res_filter, "--merge-output-format", &config.format]);
-            }
-            cmd.args(["-o", "%(title).200B [%(id)s].%(ext)s"]);
-            cmd.arg(&url);
-            let status = cmd.spawn()?.wait()?;
-            if !status.success() {
-                println!("\u{274C} download failed for {}", url);
-            }
+            run_configured_download(&url, &config, &common_args)?;
         }
     }
     println!("\n\u{2705} all operations complete.");

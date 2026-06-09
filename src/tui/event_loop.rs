@@ -516,7 +516,7 @@ fn apply_input(action: InputAction, value: String, mpv: &Mpv, state: &mut AppSta
         InputAction::NewPlaylist => {
             if value.is_empty() {
                 state.set_message("cancelled".to_string());
-            } else if state.playlists.save_playlist(&value, &[]).is_ok() {
+            } else if state.playlists.save_playlist(&value, &[]) {
                 state.playlists.refresh();
                 state.set_message(format!("created: {}", value));
             } else {
@@ -526,7 +526,7 @@ fn apply_input(action: InputAction, value: String, mpv: &Mpv, state: &mut AppSta
         InputAction::SavePlaylist => {
             if value.is_empty() {
                 state.set_message("cancelled".to_string());
-            } else if state.playlists.save_playlist(&value, &state.queue).is_ok() {
+            } else if state.playlists.save_playlist(&value, &state.queue) {
                 state.playlists.refresh();
                 state.set_message(format!("saved: {}", value));
             } else {
@@ -823,7 +823,7 @@ fn handle_playlist_keys(key: event::KeyEvent, mpv: &Mpv, state: &mut AppState) {
                         .get(state.playlists.selected_idx)
                         .cloned();
                     if let Some(name) = name {
-                        if PlaylistManager::delete_playlist(&name).is_ok() {
+                        if PlaylistManager::delete_playlist(&name) {
                             state.playlists.refresh();
                             state.set_message(format!("deleted: {}", name));
                         } else {
