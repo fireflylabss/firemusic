@@ -5,8 +5,8 @@
 - **Name**: FireMusic
 - **Stack**: Rust (edition 2024), `libmpv2`, `yt-dlp`, `crossterm`, `ratatui`
 - **Purpose**: High-performance CLI music player for local files and web streams, with discovery, download, and optional TUI
-- **Binaries**: `msc` (primary), `firemusic` (alias via `cargo install`)
-- **Version**: 0.2.9
+- **Binaries**: `msc` and `firemusic` (same entry point, both built by `cargo build`)
+- **Version**: 0.2.10
 - **License**: Apache License 2.0
 
 ## Commands
@@ -54,7 +54,7 @@ FireMusic follows the FireSuite `core/` + `cli/` + `tui/` split with a public li
 
 ```
 firemusic/
-├── Cargo.toml              # Binary name: msc, lib: firemusic
+├── Cargo.toml              # Binaries: msc + firemusic, lib: firemusic
 ├── AGENTS.md
 ├── README.md
 ├── CHANGELOG.md

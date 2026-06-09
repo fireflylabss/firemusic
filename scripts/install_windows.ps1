@@ -104,7 +104,7 @@ $env:INCLUDE = "$TEMP_DIR\include;$env:INCLUDE"
 $env:RUSTFLAGS = "-L native=$TEMP_DIR -L native=$TEMP_DIR\lib"
 
 # Run cargo build without suppressing output so the user sees progress
-cargo build --release --bin firemusic
+cargo build --release --bins
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "`n  ❌ Build failed. Check the errors above." -ForegroundColor Red
@@ -114,12 +114,12 @@ Write-Host "  ✅ Build complete." -ForegroundColor Green
 
 # 6. Move files to bin
 Write-Host "`n🚚 Finalizing installation..."
-$sourceExe = Join-Path $SRC_DIR "target\release\firemusic.exe"
+$firemusicExe = Join-Path $SRC_DIR "target\release\firemusic.exe"
+$mscExe = Join-Path $SRC_DIR "target\release\msc.exe"
 
-# Create the 3 tactical names from the same binary
-Copy-Item $sourceExe -Destination (Join-Path $BIN_DIR "msc.exe") -Force
-Copy-Item $sourceExe -Destination (Join-Path $BIN_DIR "firemusic.exe") -Force
-Copy-Item $sourceExe -Destination (Join-Path $BIN_DIR "frmsc.exe") -Force
+Copy-Item $firemusicExe -Destination (Join-Path $BIN_DIR "firemusic.exe") -Force
+Copy-Item $mscExe -Destination (Join-Path $BIN_DIR "msc.exe") -Force
+Copy-Item $firemusicExe -Destination (Join-Path $BIN_DIR "frmsc.exe") -Force
 
 # SMART DLL COPY: Look for any mpv-2.dll (with or without 'lib' prefix)
 Write-Host "  🔍 Locating libmpv-2.dll..."

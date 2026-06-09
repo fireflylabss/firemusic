@@ -54,12 +54,12 @@ git clone https://github.com/fireflylabss/firemusic.git "$TEMP_DIR/firemusic_sou
 cd "$TEMP_DIR/firemusic_source"
 
 echo -e "🚀 Building FireMusic (Release)..."
-cargo build --release
+cargo build --release --bins
 
 # Copy binaries to internal dir
 cp target/release/firemusic "$INSTALL_DIR/"
 cp target/release/msc "$INSTALL_DIR/"
-cp target/release/frmsc "$INSTALL_DIR/"
+cp target/release/firemusic "$INSTALL_DIR/frmsc"
 
 # 4. Link to System Path
 echo -e "🔗 Linking to ~/.cargo/bin..."

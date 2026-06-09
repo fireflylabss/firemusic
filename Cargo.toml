@@ -1,6 +1,6 @@
 [package]
 name = "firemusic"
-version = "0.2.9"
+version = "0.2.10"
 edition = "2024"
 
 [lib]
@@ -23,4 +23,8 @@ urlencoding = "2.1"
 
 [[bin]]
 name = "msc"
+path = "src/main.rs"
+
+[[bin]]
+name = "firemusic"
 path = "src/main.rs"
