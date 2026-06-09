@@ -1,0 +1,13 @@
+{
+  "name": "firemusic-workspace",
+  "private": true,
+  "version": "0.3.0",
+  "scripts": {
+    "gui:dev": "bunx tauri dev",
+    "gui:build": "bunx tauri build",
+    "gui:install": "cd gui && bun install"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.4.0"
+  }
+}

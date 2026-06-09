@@ -4,9 +4,9 @@
   "version": "0.3.0",
   "identifier": "com.fireflylabs.firemusic",
   "build": {
-    "beforeDevCommand": "bun run dev",
+    "beforeDevCommand": "bun run --cwd gui dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "bun run build",
+    "beforeBuildCommand": "bun run --cwd gui build",
     "frontendDist": "../gui/dist"
   },
   "app": {

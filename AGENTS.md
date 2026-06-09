@@ -26,7 +26,7 @@ cargo run -- <file-or-url>
 cargo run -- -s "query"
 cargo run -- --tui
 cargo run -- --gui
-cd gui && bun run tauri:dev
+cd gui && bun install && bun run tauri:dev   # runs from firemusic/ root internally
 cargo run -- --download
 
 # Install binaries globally (msc + firemusic)

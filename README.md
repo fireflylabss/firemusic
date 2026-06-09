@@ -40,8 +40,10 @@ User data lives under `~/.config/firemusic/` (playlists and EQ presets).
 ### Desktop GUI (Tauri + Svelte)
 
 ```bash
-# Dev (hot reload)
-cd gui && bun install && bun run tauri:dev
+# Dev (hot reload) — run from firemusic/ root (needs src-tauri/)
+cd gui && bun install
+cd .. && bun run gui:dev
+# or from gui/: bun run tauri:dev
 
 # Build GUI binary
 cd gui && bun run build

@@ -8,8 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev -c ../src-tauri/tauri.conf.json",
-    "tauri:build": "tauri build -c ../src-tauri/tauri.conf.json"
+    "tauri:dev": "cd .. && bunx tauri dev",
+    "tauri:build": "cd .. && bunx tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.4.0"
